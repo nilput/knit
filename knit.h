@@ -716,12 +716,11 @@ struct ka_lexer {
 
 	stat ::=  ‘;’ | 
 		 varlist ‘=’ explist | 
-		 functioncall | 
+		 functioncall 
 
-	funcname ::= Name {‘.’ Name} [‘:’ Name]
+	prefixexp ::= var | functioncall | ‘(’ exp ‘)’
 
-	exp ::=  nil | false | true | Numeral | LiteralString | ‘...’ | functiondef | 
-		 prefixexp | tableconstructor | exp binop exp | unop exp 
+	exp ::=  nil | false | true | Numeral | LiteralString | LiteralList | prefixexp |  exp binop exp | unop exp 
 
 	varlist ::= var {‘,’ var}
 
@@ -731,25 +730,9 @@ struct ka_lexer {
 
 	explist ::= exp {‘,’ exp}
 
-
-	prefixexp ::= var | functioncall | ‘(’ exp ‘)’
-
-	functioncall ::=  prefixexp args | prefixexp ‘:’ Name args 
+	functioncall ::=  prefixexp args 
 
 	args ::=  ‘(’ [explist] ‘)’ | tableconstructor | LiteralString 
-
-	functiondef ::= function funcbody
-
-	funcbody ::= ‘(’ [parlist] ‘)’ block end
-
-	parlist ::= namelist [‘,’ ‘...’] | ‘...’
-
-
-	fieldlist ::= field {fieldsep field} [fieldsep]
-
-	field ::= ‘[’ exp ‘]’ ‘=’ exp | Name ‘=’ exp | exp
-
-	fieldsep ::= ‘,’ | ‘;’
 
 	binop ::=  ‘+’ | ‘-’ | ‘*’ | ‘/’ | ‘//’ | ‘^’ | ‘%’ | 
 		 ‘&’ | ‘~’ | ‘|’ | ‘>>’ | ‘<<’ | ‘..’ | 
