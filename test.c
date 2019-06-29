@@ -1,14 +1,14 @@
-#include "kastr.h"
+#include "knit.h"
 
 int main(void) {
-    struct kastr kastr;
-    kastrx_init(&kastr, KASTR_POLICY_EXIT);
-    kastrx_set_str(&kastr, "name", "john"); //short for kastrx_init(&kastr, ...)
-    kastrx_eval(&kastr, "result = 'hello {name}!';");
-    struct kastr_str *str;
-    int rv = kastrx_get_str(&kastr, "name", &str);
-    kastr_assert_h(rv == KASTR_OK, "get_str() failed");
-    kastrx_vardump(&kastr, "name");
+    struct knit knit;
+    knitx_init(&knit, KNIT_POLICY_EXIT);
+    knitx_set_str(&knit, "name", "john"); //short for knitx_init(&knit, ...)
+    knitx_eval(&knit, "result = 'hello {name}!';");
+    struct knit_str *str;
+    int rv = knitx_get_str(&knit, "name", &str);
+    knit_assert_h(rv == KNIT_OK, "get_str() failed");
+    knitx_vardump(&knit, "name");
     printf("%s : %s\n", "name", str->str);
-    kastrx_deinit(&kastr);
+    knitx_deinit(&knit);
 }

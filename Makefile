@@ -1,17 +1,19 @@
 
 .PHONY: all clean
-GEN := vars_hasht.h mem_hasht.h
-all: test vars_hasht.h mem_hasht.h
+GEN := vars_hasht.h mem_hasht.h tok_darr.h
+all: test $(GEN)
 HASHT_INC := -I hasht/src/
 
 vars_hasht.h: hasht/src/hasht.h
 	./hasht/scripts/gen_hasht.sh vars_hasht $@
 mem_hasht.h: hasht/src/hasht.h
 	./hasht/scripts/gen_hasht.sh mem_hasht $@
-CFLAGS := -Wall -Wextra  -Wno-unused-function -Wno-unused-variable
+tok_darr.h: darr/src/darr.h
+	./darr/scripts/gen_darr.sh tok_darr 'struct katok' $@
+CFLAGS := -Wall -Wextra  -Wno-unused-function -Wno-unused-variable -Wno-unused-parameter
 debug: CFLAGS := $(CFLAGS) -g3 -O0
 debug: test
-test: test.c $(GEN)
+test: test.c $(GEN) knit.h
 	$(CC) $(CFLAGS) $(HASHT_INC) $< -o $@
 clean:
 	rm -f $(GEN) 2>/dev/null

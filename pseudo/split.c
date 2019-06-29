@@ -1,3 +1,6 @@
+//this file is about how the syntax should look like once the project is complete
+//
+//
 //documented structs in the api:
 struct kstr_str {
     char *str; //null terminated
