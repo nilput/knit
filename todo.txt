@@ -1,0 +1,5 @@
+Write a parser
+Turn parser output into executable statements
+Write an eval function to eval expressions
+Write tests
+Reduce line count
