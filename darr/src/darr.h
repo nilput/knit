@@ -9,10 +9,10 @@
 /*                    "darr" by a proper prefix*/
 /*                    "DARR" by a proper prefix*/
 
-typedef _DELEM_TYPE_ delem_type;
+typedef _DELEM_TYPE_ darr_elem_type;
 
 struct darr {
-    delem_type *data;
+    darr_elem_type *data;
     int len;
     int cap;
 };
@@ -30,7 +30,7 @@ static int darr_set_cap(struct darr *darr, int cap) {
         return darr_deinit(darr);
     }
     darr_assert(cap > 0, "invalid capacity requested");
-    void *new_mem = realloc(darr->data, cap * sizeof(delem_type));
+    void *new_mem = realloc(darr->data, cap * sizeof(darr_elem_type));
     if (!new_mem) {
         return DARR_NOMEM;
     }
@@ -51,7 +51,7 @@ static int darr_deinit(struct darr *darr) {
     darr->cap = 0;
     return DARR_OK;
 }
-static int darr_push(struct darr *darr, delem_type *elem) {
+static int darr_push(struct darr *darr, darr_elem_type *elem) {
     int rv;
     if (darr->len + 1 > darr->cap) {
         if (!darr->cap)
