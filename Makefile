@@ -1,6 +1,6 @@
 
 .PHONY: all clean
-GEN := vars_hasht.h mem_hasht.h tok_darr.h insns_darr.h
+GEN := vars_hasht.h mem_hasht.h tok_darr.h insns_darr.h knit_objp_darr.h knit_frame_darr.h
 all: test $(GEN)
 HASHT_INC := -I hasht/src/
 
@@ -9,9 +9,13 @@ vars_hasht.h: hasht/src/hasht.h
 mem_hasht.h: hasht/src/hasht.h
 	./hasht/scripts/gen_hasht.sh mem_hasht $@
 tok_darr.h: darr/src/darr.h
-	./darr/scripts/gen_darr.sh tok_darr 'struct katok' $@
+	./darr/scripts/gen_darr.sh tok_darr 'struct knit_tok' $@
 insns_darr.h: darr/src/darr.h
 	./darr/scripts/gen_darr.sh insns_darr 'struct knit_insn' $@
+knit_objp_darr.h: darr/src/darr.h
+	./darr/scripts/gen_darr.sh knit_objp_darr 'struct knit_obj *' $@
+knit_frame_darr.h: darr/src/darr.h
+	./darr/scripts/gen_darr.sh knit_frame_darr 'struct knit_frame' $@
 CFLAGS := -Wall -Wextra  -Wno-unused-function -Wno-unused-variable -Wno-unused-parameter
 debug: CFLAGS := $(CFLAGS) -g3 -O0
 debug: test
