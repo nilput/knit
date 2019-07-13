@@ -11,7 +11,7 @@ struct knit_obj; //fwd
 
 struct knit_list {
     KNIT_OBJ_HEAD;
-    struct knit_obj *items;
+    struct knit_obj **items;
     int len;
     int cap;
 };
@@ -84,11 +84,13 @@ enum KNIT_CONF {
 
 struct knit_frame {
     struct knit_block *block;
+    int bsp; //base stack pointer, (where locals indice are based on) this refers to the global values stack
     int ip;
 };
 #include "knit_frame_darr.h"
 struct knit_stack {
-    struct knit_frame_darr frames;
+    struct knit_frame_darr frames; //contains information about function calls and IPs
+    struct knit_objp_darr vals;    //contains the objects (ints, strs, lists ...) pushed on stack
 };
 
 struct knit_exec_state {
@@ -139,6 +141,7 @@ enum KATOK {
     KAT_SUB,
     KAT_MUL,
     KAT_DIV,
+    KAT_MOD,
 
     //not tokens
     KAT_ASSOC_LEFT,
@@ -153,6 +156,8 @@ enum KAEXPR {
     KAX_LIST_SLICE,
     KAX_VAR_REF,
     KAX_OBJ_DOT,
+    KAX_BIN_OP,
+    KAX_UN_OP,
 };
 struct knit_expr {
     int exptype;
@@ -171,6 +176,16 @@ struct knit_expr {
             struct knit_expr *beg;
             struct knit_expr *end;
         } slice;
+
+        struct { 
+            int op; //an INSN (KADD, KSUB...)
+            struct knit_expr *lhs;
+            struct knit_expr *rhs;
+        } bin;
+        struct { 
+            int op; //an INSN (KNEG, etc..)
+            struct knit_expr *operand;
+        } un;
 
         struct knit_dot { 
             struct knit_str *str;
@@ -197,6 +212,8 @@ struct knit_expr {
         KAX_LIST_INDEX: exp
         KAX_LIST_SLICE: slice
         KAX_OBJ_DOT: prefix
+        KAX_BIN_OP: bin
+        KAX_UN_OP: un
         */
 
     } u;
@@ -215,34 +232,44 @@ struct knit_call {
 };
 //order tied to knit_insninfo
 enum KNIT_INSN {
-    KPUSH = 1,
-    KPOP,
-    KCALL,
-    KINDX,
-    KADD,
-    KSUB,
-    KMUL,
-    KDIVM,
+    /*
+        s: stack
+        t: current stack size (s[t-1] is top of stack)
+     */
+    KPUSH = 1, /*inputs: (index,)                       op: s[t] = s[index]; t++;*/
+    KPOP,      /*inputs: (count,)                       op: t -= count;*/
+    KLOAD,     /*inputs: (index,)                       op: s[t] = current_block_constants[index]; t++;*/
+    KCALL,     /*inputs: (func_index,      nargs)       op: s[func_index](args...)*/
+    KINDX,     /*inputs: (container_index, expr_index)  op: s[t] = (s[container_index])[s[expr_index]]; t++*/
+
+    KADD,  /*s[t-2] = s[t-2] + s[t-1]; pop 1;*/
+    KSUB,  /*s[t-2] = s[t-2] - s[t-1]; pop 1;*/
+    KMUL,  /*s[t-2] = s[t-2] * s[t-1]; pop 1;*/
+    KDIV,  /*s[t-2] = s[t-2] / s[t-1]; pop 1;*/
+    KMOD,  /*s[t-2] = s[t-2] % s[t-1]; pop 1;*/
 };
 #define KINSN_FIRST KPUSH
-#define KINSN_LAST  KDIVM
+#define KINSN_LAST  KMOD
 #define KINSN_TVALID(type)  ((type) >= KINSN_FIRST && (type) <= KINSN_LAST)
 
-//order tied to enum
+//Order is tied to enum
 static struct knit_insninfo {
     int insn_type;
     const char *rep;
+    int n_op; //number of operands (used for dumping)
 } knit_insninfo[] = {
-    {0, NULL},
-    {KPUSH, "KPUSH"},
-    {KPOP, "KPOP"},
-    {KCALL, "KCALL"},
-    {KINDX, "KINDX"},
-    {KADD, "KADD"},
-    {KSUB, "KSUB"},
-    {KMUL, "KMUL"},
-    {KDIVM, "KDIVM"},
-    {0, NULL},
+    {0, NULL, 0},
+    {KPUSH, "KPUSH", 1},
+    {KPOP, "KPOP",   1},
+    {KLOAD, "KLOAD", 1},
+    {KCALL, "KCALL", 2},
+    {KINDX, "KINDX", 2},
+    {KADD, "KADD",   0},
+    {KSUB, "KSUB",   0},
+    {KMUL, "KMUL",   0},
+    {KDIV, "KDIV",   0},
+    {KMOD, "KMOD",   0},
+    {0, NULL, 0},
 };
 struct knit_insn {
     int insn_type;
