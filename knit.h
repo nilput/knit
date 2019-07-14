@@ -1505,7 +1505,8 @@ static int knitx_emit_expr_eval(struct knit *knit, struct knit_prs *prs, struct 
         rv = knitx_emit_1(knit, prs, expr->u.bin.op);
     }
     else if (expr->exptype == KAX_ASSIGNMENT) {
-        rv = knitx_emit_expr_eval(knit, prs, 
+        /* rv = knitx_emit_expr_eval(knit, prs, */ 
+        knit_fatal("expr eval currently not implemented");
     }
     else if (expr->exptype == KAX_LITERAL_LIST) {
         knit_fatal("expr eval currently not implemented");
