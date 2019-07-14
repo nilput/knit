@@ -33,6 +33,8 @@ enum KNIT_RV {
     KNIT_NOMEM,
     KNIT_SYNTAX_ERR,
     KNIT_RUNTIME_ERR,
+    KNIT_DEINIT_ERR,
+    KNIT_OUT_OF_RANGE_ERR,
     KNIT_NOT_FOUND_ERR,
 };
 enum KNIT_TYPE {
@@ -149,6 +151,7 @@ enum KATOK {
 };
 enum KAEXPR {
     KAX_CALL,
+    KAX_ASSIGNMENT,
     KAX_LITERAL_STR,
     KAX_LITERAL_INT,
     KAX_LITERAL_LIST,
@@ -158,6 +161,11 @@ enum KAEXPR {
     KAX_OBJ_DOT,
     KAX_BIN_OP,
     KAX_UN_OP,
+};
+
+struct knit_call {
+    struct knit_expr *called;
+    struct knit_objp_darr args;
 };
 struct knit_expr {
     int exptype;
@@ -201,10 +209,11 @@ struct knit_expr {
         //     _knit_dot__________
         //_prefix______________
         //
-        struct knit_call *call;
+        struct knit_call call;
 
         /*
         KAX_CALL: call
+        KAX_ASSIGNMENT: bin
         KAX_LITERAL_STR: str
         KAX_LITERAL_INT: integer
         KAX_LITERAL_LIST: list
@@ -218,17 +227,9 @@ struct knit_expr {
 
     } u;
 };
-struct knit_func_args {
-    struct knit_expr args[KNIT_MAX_ARGS];
-    int nargs;
-};
-typedef struct knit_obj * ( *knit_func_type )(struct knit *, struct knit_func_args *);
+typedef struct knit_obj * ( *knit_func_type )(struct knit *);
 struct knit_func {
     knit_func_type fptr;
-};
-struct knit_call {
-    struct knit_expr *called;
-    struct knit_func_args args;
 };
 //order tied to knit_insninfo
 enum KNIT_INSN {
@@ -241,6 +242,7 @@ enum KNIT_INSN {
     KLOAD,     /*inputs: (index,)                       op: s[t] = current_block_constants[index]; t++;*/
     KCALL,     /*inputs: (func_index,      nargs)       op: s[func_index](args...)*/
     KINDX,     /*inputs: (container_index, expr_index)  op: s[t] = (s[container_index])[s[expr_index]]; t++*/
+    KRET,      /*inputs: (count,)  op: s[prev_bsp : prev_bsp + count] = s[t-count : t] t = prev_bsp + count;*/
 
     KADD,  /*s[t-2] = s[t-2] + s[t-1]; pop 1;*/
     KSUB,  /*s[t-2] = s[t-2] - s[t-1]; pop 1;*/
@@ -260,15 +262,16 @@ static struct knit_insninfo {
 } knit_insninfo[] = {
     {0, NULL, 0},
     {KPUSH, "KPUSH", 1},
-    {KPOP, "KPOP",   1},
+    {KPOP,  "KPOP",   1},
     {KLOAD, "KLOAD", 1},
     {KCALL, "KCALL", 2},
     {KINDX, "KINDX", 2},
-    {KADD, "KADD",   0},
-    {KSUB, "KSUB",   0},
-    {KMUL, "KMUL",   0},
-    {KDIV, "KDIV",   0},
-    {KMOD, "KMOD",   0},
+    {KRET,  "KRET", 1},
+    {KADD,  "KADD",   0},
+    {KSUB,  "KSUB",   0},
+    {KMUL,  "KMUL",   0},
+    {KDIV,  "KDIV",   0},
+    {KMOD,  "KMOD",   0},
     {0, NULL, 0},
 };
 struct knit_insn {
