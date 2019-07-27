@@ -3,6 +3,7 @@
 void interactive(void) {
     struct knit knit;
     knitx_init(&knit, KNIT_POLICY_EXIT);
+    knitxr_register_stdlib(&knit);
     char buf[256] = {0};
     char *ln = fgets(buf, 256, stdin);
     while (ln) {
@@ -22,18 +23,19 @@ void t2(void) {
     struct knit knit;
     knitx_init(&knit, KNIT_POLICY_EXIT);
     knitx_set_str(&knit, "name", "john"); //short for knitx_init(&knit, ...)
-    knitx_exec_str(&knit, "result = 'hello {name}!';");
+    knitx_exec_str(&knit, "g.result = 'hello {name}!';");
     struct knit_str *str;
     int rv = knitx_get_str(&knit, "name", &str);
     knit_assert_h(rv == KNIT_OK, "get_str() failed");
-    knitx_vardump(&knit, "name");
+    knitx_globals_dump(&knit);
     printf("%s : %s\n", "name", str->str);
     knitx_deinit(&knit);
 }
 void t3(void) {
     struct knit knit;
     knitx_init(&knit, KNIT_POLICY_EXIT);
-    knitx_exec_str(&knit, "23 + (8 - 5);");
+    knitx_exec_str(&knit, "g.result = 23 + (8 - 5);");
+    knitx_globals_dump(&knit);
     knitx_deinit(&knit);
 }
 void (*funcs[])(void) = {

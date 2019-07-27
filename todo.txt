@@ -1,4 +1,4 @@
 Write rest of parser
 write a prototype datastructure for functions, and figure out how to integrate it with the existing _block struct
-Write tests
+Write tests, including tests for error handling paths, memory management is ignored there on purpose (too much friction early in development)
 Reduce line count
