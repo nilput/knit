@@ -1,3 +1,4 @@
 Write rest of parser
+write a prototype datastructure for functions, and figure out how to integrate it with the existing _block struct
 Write tests
 Reduce line count

@@ -1,5 +1,17 @@
 #include "knit.h"
 
+void interactive(void) {
+    struct knit knit;
+    knitx_init(&knit, KNIT_POLICY_EXIT);
+    char buf[256] = {0};
+    char *ln = fgets(buf, 256, stdin);
+    while (ln) {
+        knitx_exec_str(&knit, buf);
+        ln = fgets(buf, 256, stdin);
+    }
+    knitx_globals_dump(&knit);
+    knitx_deinit(&knit);
+}
 void t1(void) {
     struct knit knit;
     knitx_init(&knit, KNIT_POLICY_EXIT);
@@ -28,14 +40,19 @@ void (*funcs[])(void) = {
     t1,
     t2,
     t3,
-    NULL,
 };
 int main(int argc, char **argv) {
-    int c = 0;
-    if (argc > 1)
-        c = atoi(argv[1]);
-    const int nfuncs = 3;
-    if (c <= 0 || c > nfuncs)
-        c = 1;
-    funcs[c-1]();
+    void (*func)(void) = interactive;
+    if (argc > 1) {
+        if (argv[1][0] == '-' && argv[1][1] == 'i') {
+            func = interactive;
+        }
+        else {
+            int c = atoi(argv[1]) - 1;
+            int nfuncs = (sizeof funcs  / sizeof funcs[0]);
+            c = c < 0 ? 0 : (c >= nfuncs ? 0 : c);
+            func = funcs[c];
+        }
+    }
+    func();
 }

@@ -1,6 +1,6 @@
 
 .PHONY: all clean
-GEN := vars_hasht.h mem_hasht.h tok_darr.h insns_darr.h knit_objp_darr.h knit_frame_darr.h
+GEN := vars_hasht.h mem_hasht.h tok_darr.h insns_darr.h knit_objp_darr.h knit_frame_darr.h 
 all: test $(GEN)
 HASHT_INC := -I hasht/src/
 
