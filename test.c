@@ -38,10 +38,21 @@ void t3(void) {
     knitx_globals_dump(&knit);
     knitx_deinit(&knit);
 }
+void t4(void) {
+    struct knit knit;
+    knitx_init(&knit, KNIT_POLICY_EXIT);
+    knitxr_register_stdlib(&knit);
+    knitx_exec_str(&knit, "g.print('hello world!', 1, 2, 3);"
+                          "g.foo = 'test';"
+                          "g.print(g.foo);");
+    knitx_globals_dump(&knit);
+    knitx_deinit(&knit);
+}
 void (*funcs[])(void) = {
     t1,
     t2,
     t3,
+    t4,
 };
 int main(int argc, char **argv) {
     void (*func)(void) = interactive;

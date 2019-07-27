@@ -11,7 +11,15 @@ static int knitx_register_cfunction(struct knit *kstate, const char *funcname, k
 }
 
 static int knitxr_print(struct knit *kstate) {
-    printf("knit prints!\n");
+    int nargs = knitx_nargs(kstate);
+    for (int i=0; i<nargs; i++) {
+        struct knit_obj *obj = NULL;
+        int rv = knitx_get_arg(kstate, i, &obj);
+        if (rv != KNIT_OK)
+            return rv;
+        knitx_obj_dump(kstate, obj);
+    }
+    knitx_creturns(kstate, 0);
     return KNIT_OK;
 }
 static int knitxr_register_stdlib(struct knit *kstate) {

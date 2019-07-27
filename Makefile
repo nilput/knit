@@ -21,6 +21,8 @@ knit_expr_darr.h: darr/src/darr.h
 CFLAGS := -Wall -Wextra  -Wno-unused-function -Wno-unused-variable -Wno-unused-parameter
 debug: CFLAGS := $(CFLAGS) -g3 -O0
 debug: test
+opt: CFLAGS := $(CFLAGS) -O2
+opt: test
 test: test.c $(GEN) knit.h
 	$(CC) $(CFLAGS) $(HASHT_INC) $< -o $@
 knit.h: kdata.h

@@ -330,7 +330,7 @@ static int knitx_str_set_cap(struct knit *knit, struct knit_str *str, int capaci
         str->str[str->len] = 0;
     }
     else {
-        void *p;
+        void *p = NULL;
         int rv = knitx_trealloc(knit, str->str, capacity, &p);
         if (rv != KNIT_OK) {
             return rv;
@@ -484,12 +484,13 @@ static int knitx_globals_dump(struct knit *knit) {
     struct vars_hasht *ht = &knit->ex.global_ht;
     struct vars_hasht_iter iter;
     int rv = vars_hasht_begin_iterator(ht, &iter);
+    fprintf(stderr, "Global variables:\n");
     for (; vars_hasht_iter_check(&iter); vars_hasht_iter_next(ht, &iter)) {
         if (iter.pair->key.str) {
-            fprintf(stderr, "%s", iter.pair->key.str);
+            fprintf(stderr, "\t%s", iter.pair->key.str);
         }
         else {
-            fprintf(stderr, "NULL");
+            fprintf(stderr, "\tNULL");
         }
         fprintf(stderr, " : ");
         if (iter.pair->value) {
@@ -843,16 +844,30 @@ static int knitx_block_dump(struct knit *knit, struct knit_block *block) {
 
 
 /*EXECUTION STATE FUNCS*/
-static int knitx_frame_init(struct knit *knit, struct knit_frame *frame, struct knit_block *block, int ip, int bsp, int nargs) {
+static int knitx_frame_init_kf(struct knit *knit, struct knit_frame *frame, struct knit_block *block, int ip, int bsp, int nargs) {
     kincref(block);
-    frame->block = block;
-    frame->ip = ip;
+    frame->frame_type = KNIT_FRAME_KBLOCK;
+    frame->u.kf.block = block;
+    frame->u.kf.ip = ip;
+    frame->bsp = bsp;
+    frame->nargs = nargs;
+    return KNIT_OK;
+}
+static int knitx_frame_init_cf(struct knit *knit, struct knit_frame *frame, struct knit_cfunc *cfunc, int bsp, int nargs) {
+    kincref(cfunc);
+    frame->frame_type = KNIT_FRAME_CFUNC;
+    frame->u.cf.cfunc = cfunc;
     frame->bsp = bsp;
     frame->nargs = nargs;
     return KNIT_OK;
 }
 static int knitx_frame_deinit(struct knit *knit, struct knit_frame *frame) {
-    kdecref(frame->block);
+    if (frame->frame_type == KNIT_FRAME_KBLOCK)
+        kdecref(frame->u.kf.block);
+    else if (frame->frame_type == KNIT_FRAME_CFUNC)
+        kdecref(frame->u.cf.cfunc);
+    else
+        knit_assert_h(0, "invalid frame type");
     return KNIT_OK;
 }
 //outi_str must be already initialized
@@ -860,11 +875,19 @@ static int knitx_frame_rep(struct knit *knit, struct knit_frame *frame, struct k
     int rv = KNIT_OK;
     struct knit_str *tmpstr = NULL;
     rv = knitx_str_new(knit, &tmpstr); KNIT_CRV(rv);
-    rv = knitx_block_rep(knit, frame->block, tmpstr);
-    if (rv != KNIT_OK) {
-        goto cleanup_tmpstr;
+    if (frame->frame_type == KNIT_FRAME_KBLOCK) {
+        rv = knitx_block_rep(knit, frame->u.kf.block, tmpstr);
+        if (rv != KNIT_OK) {
+            goto cleanup_tmpstr;
+        }
+        rv = knit_sprintf(knit, outi_str, "[frame, block: %s, ip: %d, bsp: %d]", tmpstr->str, frame->u.kf.ip, frame->bsp);
     }
-    rv = knit_sprintf(knit, outi_str, "[frame, block: %s, ip: %d, bsp: %d]", tmpstr->str, frame->ip, frame->bsp);
+    else if (frame->frame_type == KNIT_FRAME_CFUNC) {
+        rv = knit_sprintf(knit, outi_str, "[frame, c function ]");
+    }
+    else {
+        knit_assert_h(0, "invalid frame type");
+    }
     if (rv != KNIT_OK) {
         goto cleanup_tmpstr;
     }
@@ -901,11 +924,47 @@ static int knitx_stack_nlocals(struct knit *knit, struct knit_stack *stack) {
     /* stack->frames.len */
     return 0;
 }
+//return value: integer
+static int knitx_stack_nargs(struct knit *knit, struct knit_stack *stack) {
+    struct knit_frame *top_frm = &stack->frames.data[stack->frames.len-1];
+    return top_frm->nargs;
+}
+
+
+//return value: error code
+static int knitx_stack_get_arg(struct knit *knit, struct knit_stack *stack, int idx, struct knit_obj **objp_out) {
+    struct knit_frame *top_frm = &stack->frames.data[stack->frames.len-1];
+    int nargs = knitx_stack_nargs(knit, stack);
+    if (idx < 0 || idx >= nargs) {
+        *objp_out = NULL;
+        return knit_error(knit, KNIT_OUT_OF_RANGE_ERR, "knitx_stack_get_arg(): index out of range");
+    }
+    *objp_out = stack->vals.data[top_frm->bsp - nargs + idx - 1]; //-1 because we assume the function itself is pushed
+    return KNIT_OK;
+}
+
+//convenience
+static int knitx_nargs(struct knit *knit) {
+    return knitx_stack_nargs(knit, &knit->ex.stack);
+}
+
+static int knitx_get_arg(struct knit *knit, int idx, struct knit_obj **objp_out) {
+    return knitx_stack_get_arg(knit, &knit->ex.stack, idx, objp_out);
+}
+
 //number of temporaries (excluding local function variables and function arguments)
 static int knitx_stack_ntemp(struct knit *knit, struct knit_stack *stack) {
     struct knit_frame *top_frm = &stack->frames.data[stack->frames.len-1];
     return stack->vals.len - top_frm->bsp - knitx_stack_nlocals(knit, stack);
 }
+
+//api function, used by C functions to report the number of values they're going to return
+static void knitx_creturns(struct knit *knit, int nvalues) {
+    struct knit_frame *top_frm = &knit->ex.stack.frames.data[knit->ex.stack.frames.len-1];
+    knit_assert_h(knitx_stack_ntemp(knit, &knit->ex.stack) >= nvalues, "invalid number of returns");
+    knit->ex.stack.nresults = nvalues;
+}
+
 //if n_* is < 0 then all will be printed
 //if it is zero nothing will be
 static int knitx_stack_dump(struct knit *knit, struct knit_stack *stack, int n_values, int n_backtrace) {
@@ -947,10 +1006,11 @@ cleanup_tmpstr1:
     knitx_str_destroy(knit, tmpstr1);
     return rv;
 }
-static int knitx_stack_push_frame_for_call(struct knit *knit, struct knit_block *block, int nargs) {
+
+static int knitx_stack_push_frame_for_kcall(struct knit *knit, struct knit_block *block, int nargs) {
     struct knit_frame frm;
     int bsp = knit->ex.stack.vals.len; //base stack pointer
-    int rv = knitx_frame_init(knit, &frm, block, 0, bsp, nargs);
+    int rv = knitx_frame_init_kf(knit, &frm, block, 0, bsp, nargs);
     if (rv != KNIT_OK) {
         return rv;
     }
@@ -960,9 +1020,42 @@ static int knitx_stack_push_frame_for_call(struct knit *knit, struct knit_block 
         knitx_frame_deinit(knit, &frm);
         return knit_error(knit, KNIT_RUNTIME_ERR, "knit_stack_push_frame_for_call(): pushing a stack frame failed");
     }
-    kincref(block);
     return KNIT_OK;
 }
+static int knitx_stack_push_frame_for_ccall(struct knit *knit, struct knit_cfunc *cfunc, int nargs) {
+    struct knit_frame frm;
+    int bsp = knit->ex.stack.vals.len; //base stack pointer
+    int rv = knitx_frame_init_cf(knit, &frm, cfunc, bsp, nargs);
+    if (rv != KNIT_OK) {
+        return rv;
+    }
+    struct knit_exec_state *exs = &knit->ex;
+    rv = knit_frame_darr_push(&exs->stack.frames, &frm);
+    if (rv != KNIT_FRAME_DARR_OK) {
+        knitx_frame_deinit(knit, &frm);
+        return knit_error(knit, KNIT_RUNTIME_ERR, "knit_stack_push_frame_for_call(): pushing a stack frame failed");
+    }
+    return KNIT_OK;
+}
+
+/*
+ * before: 'a' 'b' 'c' 'd'
+ * calling knitx_stack_moveup(knit, stack, 1, 2) result in:
+ * after: 'a' 'c' 'd'
+ *
+ */
+static int knitx_stack_moveup(struct knit *knit, struct knit_stack *stack, int dest_idx, int n) {
+    knit_assert_h(dest_idx >= 0, "");
+    knit_assert_h((stack->vals.len - n) >= dest_idx, "");
+    memmove(stack->vals.data + dest_idx, stack->vals.data + stack->vals.len - n, sizeof(struct knit_obj *) * n);
+#ifdef KNIT_CHECKS
+    int last_arg = dest_idx + n;
+    int nunused = stack->vals.len - last_arg;
+    memset(stack->vals.data + last_arg, 0, sizeof(struct knit_obj *) * nunused);
+#endif
+    return KNIT_OK;
+}
+
 static int knitx_stack_pop_frame(struct knit *knit, struct knit_stack *stack) {
     if (stack->frames.len <= 0) {
         return knit_error(knit, KNIT_RUNTIME_ERR, "knit_stack_pop_frame(): attempting to pop an empty stack");
@@ -971,6 +1064,7 @@ static int knitx_stack_pop_frame(struct knit *knit, struct knit_stack *stack) {
     stack->frames.len--;
     return KNIT_OK;
 }
+
 static int knitx_exec_state_init(struct knit *knit, struct knit_exec_state *exs) {
     int rv = vars_hasht_init(&exs->global_ht, 32);
     if (rv != VARS_HASHT_OK) {
@@ -985,6 +1079,7 @@ cleanup_vars_ht:
     vars_hasht_deinit(&exs->global_ht);
     return rv;
 }
+
 static int knitx_exec_state_deinit(struct knit *knit, struct knit_exec_state *exs) {
     vars_hasht_deinit(&exs->global_ht);
     int rv = knitx_stack_deinit(knit, &exs->stack);
@@ -1785,7 +1880,7 @@ static int knitx_emit_expr_eval(struct knit *knit, struct knit_prs *prs, struct 
         }
         rv = knitx_emit_expr_eval(knit, prs, expr->u.call.called); KNIT_CRV(rv);
         rv = knitx_emit_2(knit, prs, KCALL, expr->u.call.args.len); KNIT_CRV(rv);
-        //TODO who pops useless stack parameters
+        //TODO at this point the stack will have return values
     }
     else if (expr->exptype == KAX_LITERAL_STR) {
         int idx = -1;
@@ -2084,7 +2179,7 @@ static int knitx_do_global_load(struct knit *knit, struct knit_str *name) {
     int rv = vars_hasht_find(&exs->global_ht, name, &iter);
     if (rv != VARS_HASHT_OK) {
         if (rv == VARS_HASHT_NOT_FOUND)
-            return knit_error(knit, KNIT_NOT_FOUND_ERR, "variable '%s' is undefined", name);
+            return knit_error(knit, KNIT_NOT_FOUND_ERR, "variable '%s' is undefined", name->str);
         else 
             return knit_error(knit, KNIT_RUNTIME_ERR, "an error occured while trying to lookup a variable in vars_hasht_find()");
     }
@@ -2120,13 +2215,13 @@ static int knitx_exec(struct knit *knit) {
 
     knit_assert_h(frames->len > 0, "");
     struct knit_frame *top_frm = &frames->data[frames->len-1];
-    struct knit_block *block = top_frm->block;
+    struct knit_block *block = top_frm->u.kf.block;
     knit_assert_h(top_frm->bsp >= 0 && top_frm->bsp <= stack_vals->len, "");
 
     int rv = KNIT_OK;
     while (1) {
-        knit_assert_s(top_frm->ip < block->insns.len, "executing out of range instruction");
-        struct knit_insn *insn = &block->insns.data[top_frm->ip];
+        knit_assert_s(top_frm->u.kf.ip < block->insns.len, "executing out of range instruction");
+        struct knit_insn *insn = &block->insns.data[top_frm->u.kf.ip];
         int t = stack_vals->len; //values stack size, top of stack is stack_vals->data[t-1]
         int op = insn->insn_type;
         rv = KNIT_OK;
@@ -2135,10 +2230,6 @@ static int knitx_exec(struct knit *knit) {
         }
         else if (op == KPOP) {
             knit_assert_s(insn->op1 > 0 && insn->op1 <= stack_vals->len, "popping too many values");
-
-            fprintf(stderr, "Popped value: ");
-            knitx_obj_dump(knit, stack_vals->data[stack_vals->len - 1]);
-            fprintf(stderr, "\n");
 
             for (int i=stack_vals->len - insn->op1; i < stack_vals->len; i++) {
                 kdecref(stack_vals->data[i]);
@@ -2175,7 +2266,9 @@ static int knitx_exec(struct knit *knit) {
             int nargs = insn->op1;
             //assuming cfunction
             if (func->u.ktype == KNIT_CFUNC) {
+                knitx_stack_push_frame_for_ccall(knit, (struct knit_cfunc *)func, nargs);
                 rv = func->u.cfunc.fptr(knit);
+                knitx_stack_pop_frame(knit, &knit->ex.stack);
             }
             else if (func->u.ktype == KNIT_KFUNC) {
                 knit_fatal("knit funcs not implemented: %s", knit_insn_name(op));
@@ -2185,7 +2278,7 @@ static int knitx_exec(struct knit *knit) {
                 return /*ml?*/ knit_error(knit, KNIT_RUNTIME_ERR, "tried to call a non-callable type");
             }
             top_frm = &frames->data[frames->len-1];
-            block   = top_frm->block;
+            block   = top_frm->u.kf.block;
         }
         else if (op == KINDX) {
             knit_fatal("insn not supported: %s", knit_insn_name(op));
@@ -2194,23 +2287,13 @@ static int knitx_exec(struct knit *knit) {
             knit_fatal("insn not supported: %s", knit_insn_name(op));
         }
         else if (op == KRET) {
-            knit_assert_h((stack_vals->len - top_frm->bsp) >= insn->op1, "returning too many values");
-            /*
-             * [locals and tmps] : deref
-             * [return values] : move up
-             */
-            for (int i=top_frm->bsp; i<(stack_vals->len - insn->op1); i++) {
-                kdecref(stack_vals->data[i]);
-                knitx_stack_assign_null(knit, stack, i);
-            }
-            for (int i=0; i<insn->op1; i++) {
-                int from_idx = stack_vals->len    - i - 1;
-                int to_idx   = top_frm->bsp + i;
-                stack_vals->data[to_idx] = stack_vals->data[from_idx];
-                if (from_idx > top_frm->bsp + insn->op1)
-                    knitx_stack_assign_null(knit, stack, from_idx);
-            }
-            stack_vals->len = top_frm->bsp + insn->op1; //pops all unneeded
+            
+            int nreturns = insn->op1;
+            int move_to = top_frm->bsp;
+            knit_assert_h((stack_vals->len - move_to) >= insn->op1, "returning too many values");
+            rv = knitx_stack_moveup(knit, &knit->ex.stack, move_to, nreturns);
+            stack_vals->len = top_frm->bsp + nreturns; //pops all unneeded
+            stack->nresults = nreturns;
             rv = knitx_stack_pop_frame(knit, stack);
             if (rv != KNIT_OK)
                 return rv;
@@ -2218,7 +2301,7 @@ static int knitx_exec(struct knit *knit) {
                 goto done;
             }
             top_frm = &frames->data[frames->len-1];
-            block = top_frm->block;
+            block = top_frm->u.kf.block;
 
             knit_assert_h(top_frm->bsp >= 0 && top_frm->bsp <= stack_vals->len, "");
         }
@@ -2232,13 +2315,13 @@ static int knitx_exec(struct knit *knit) {
             //TODO handle error by returning from function
             return rv;
         }
-        top_frm->ip++; //we have no support for branches currently
+        top_frm->u.kf.ip++; //we have no support for branches currently
     }
 done:
     return KNIT_OK;
 }
 static int knitx_block_exec(struct knit *knit, struct knit_block *block, int nargs) {
-    int rv = knitx_stack_push_frame_for_call(knit, block, nargs); KNIT_CRV(rv);
+    int rv = knitx_stack_push_frame_for_kcall(knit, block, nargs); KNIT_CRV(rv);
     rv = knitx_exec(knit); KNIT_CRV(rv);
     return KNIT_OK;
 }
@@ -2305,4 +2388,4 @@ static int knitx_deinit(struct knit *knit) {
 }
 
 
-#include "knit_runtime.h" //runtime functions
+#include "kruntime.h" //runtime functions
