@@ -12,6 +12,11 @@
 #define KNIT_CHECKS
 #define KNIT_DEBUG_PRINT
 
+//these are the only instances of these special types
+static const struct knit_bvalue ktrue  = { KNIT_TRUE };
+static const struct knit_bvalue kfalse = { KNIT_FALSE };
+static const struct knit_bvalue knull  = { KNIT_NULL };
+
 static void knit_fatal(const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
@@ -89,7 +94,7 @@ static void knitx_obj_decref(struct knit *knit, struct knit_obj *obj) {
 #define ktobj(p) ((struct knit_obj *) (p))
 
 static const char *knitx_obj_type_name(struct knit *knit, struct knit_obj *obj);
-static int knitx_obj_rep(struct knit *knit, struct knit_obj *obj, struct knit_str *outi_str);
+static int knitx_obj_rep(struct knit *knit, struct knit_obj *obj, struct knit_str *outi_str, int human);
 static int knitx_obj_dump(struct knit *knit, struct knit_obj *obj);
 
 //fwd
@@ -308,7 +313,7 @@ static int knitx_str_new_strcpy(struct knit *knit, struct knit_str **strp, const
 
 static int knitx_str_clear(struct knit *knit, struct knit_str *str) {
     (void) knit;
-    if (str->cap >= 0) {
+    if (str->cap > 0) {
         str->str[0] = 0;
         str->len = 0;
     }
@@ -452,6 +457,7 @@ static int knitx_str_streq(struct knit *knit, struct knit_str *str_a, struct kni
         return 1;
     return knit_strl_eq(str_a->str, str_b->str, str_a->len);
 }
+
 
 static int knitx_str_init_strcpy(struct knit *knit, struct knit_str *str, const char *src0) {
     int rv = knitx_str_init(knit, str);
@@ -761,6 +767,22 @@ static int knitx_block_add_constant(struct knit *knit, struct knit_block *block,
     *index_out = block->constants.len - 1;
     return KNIT_OK;
 }
+
+//boolean return value
+static int knitx_is_in_filescope(struct knit *knit, struct knit_prs *prs) {
+    return prs->curblk->parent == NULL;
+}
+static void knit_fatal_parse(struct knit_prs *prs, const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    fprintf(stderr, "line %d:", prs->lex.lineno);
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
+    va_end(ap);
+    abort();
+}
+
+//doesn't own src
 static int knitx_current_block_add_strl_constant(struct knit *knit, struct knit_prs *prs,  const char *src, int len, int *index_out) {
     struct knit_str *str = NULL;
     int rv = knitx_str_new(knit, &str); KNIT_CRV(rv);
@@ -779,16 +801,21 @@ static const char *knitx_obj_type_name(struct knit *knit, struct knit_obj *obj) 
     return "ERR_UNKNOWN_TYPE";
 }
 //outi_str must be already initialized
-static int knitx_obj_rep(struct knit *knit, struct knit_obj *obj, struct knit_str *outi_str) {
+static int knitx_obj_rep(struct knit *knit, struct knit_obj *obj, struct knit_str *outi_str, int human) {
     int rv = KNIT_OK;
+    rv = knitx_str_clear(knit, outi_str); KNIT_CRV(rv);
     if (obj == NULL) {
         rv = knitx_str_strcpy(knit, outi_str, "[NULL]"); KNIT_CRV(rv);
     }
     else if (obj->u.ktype == KNIT_STR) {
         struct knit_str *objstr = (struct knit_str *) obj;
-        rv = knitx_str_strlcpy(knit, outi_str, "\"", 1); KNIT_CRV(rv);
+        if (!human) {
+            rv = knitx_str_strlcpy(knit, outi_str, "\"", 1); KNIT_CRV(rv);
+        }
         rv = knitx_str_strlappend(knit, outi_str, objstr->str, objstr->len); KNIT_CRV(rv);
-        rv = knitx_str_strlappend(knit, outi_str, "\"", 1); KNIT_CRV(rv);
+        if (!human) {
+            rv = knitx_str_strlappend(knit, outi_str, "\"", 1); KNIT_CRV(rv);
+        }
     }
     else if (obj->u.ktype == KNIT_INT) {
         struct knit_int *objint = (struct knit_int *) obj;
@@ -803,7 +830,7 @@ static int knitx_obj_rep(struct knit *knit, struct knit_obj *obj, struct knit_st
             }
             struct knit_str *tmpstr = NULL;
             rv = knitx_str_new(knit, &tmpstr); KNIT_CRV(rv);
-            rv = knitx_obj_rep(knit, objlist->items[i], tmpstr);
+            rv = knitx_obj_rep(knit, objlist->items[i], tmpstr, 0);
             if (rv != KNIT_OK) {
                 knitx_str_destroy(knit, tmpstr);
                 return rv;
@@ -821,6 +848,15 @@ static int knitx_obj_rep(struct knit *knit, struct knit_obj *obj, struct knit_st
     else if (obj->u.ktype == KNIT_KFUNC) {
         rv = knitx_str_strcpy(knit, outi_str, "<knit function>"); KNIT_CRV(rv);
     }
+    else if (obj->u.ktype == KNIT_NULL) {
+        rv = knitx_str_strcpy(knit, outi_str, "null"); KNIT_CRV(rv);
+    }
+    else if (obj->u.ktype == KNIT_TRUE) {
+        rv = knitx_str_strcpy(knit, outi_str, "true"); KNIT_CRV(rv);
+    }
+    else if (obj->u.ktype == KNIT_FALSE) {
+        rv = knitx_str_strcpy(knit, outi_str, "false"); KNIT_CRV(rv);
+    }
     else {
         knit_fatal("knitx_obj_rep(): unknown object type");
     }
@@ -829,7 +865,7 @@ static int knitx_obj_rep(struct knit *knit, struct knit_obj *obj, struct knit_st
 static int knitx_obj_dump(struct knit *knit, struct knit_obj *obj) {
     struct knit_str *tmpstr = NULL;
     int rv = knitx_str_new(knit, &tmpstr); KNIT_CRV(rv);
-    rv = knitx_obj_rep(knit, obj, tmpstr);
+    rv = knitx_obj_rep(knit, obj, tmpstr, 0);
     if (rv != KNIT_OK) {
         knitx_str_destroy(knit, tmpstr);
         return rv;
@@ -843,7 +879,7 @@ static int knitx_block_dump_consts(struct knit *knit, struct knit_block *block) 
     struct knit_str str;
     int rv = knitx_str_init(knit, &str); KNIT_CRV(rv);
     for (int i=0; i<block->constants.len; i++) {
-        rv = knitx_obj_rep(knit, block->constants.data[i], &str);
+        rv = knitx_obj_rep(knit, block->constants.data[i], &str, 0);
         if (rv != KNIT_OK) {
             knitx_str_deinit(knit, &str);
             return rv;
@@ -866,10 +902,46 @@ static int knitx_block_dump(struct knit *knit, struct knit_block *block) {
         fprintf(stderr, "\t%d\t%s", i, inf->rep);
         switch (inf->n_op) {
             case 2: fprintf(stderr, " %d,", insn->op2);/*fall through*/
-            case 1: fprintf(stderr, " %d",  insn->op1);/*fall through*/
+            case 1: {
+                if (insn->insn_type == KEMIT) {
+                    fprintf(stderr, " %s",  (insn->op1 == KEMTRUE)  ? "true"  :(
+                                            (insn->op1 == KEMFALSE) ? "false" :(
+                                            (insn->op1 == KEMNULL)  ? "null"  : "UNKNOWN")));
+                }
+                else {
+                    fprintf(stderr, " %d",  insn->op1);
+                }
+            }/*fall through*/
             case 0: fprintf(stderr, "\n"); break; 
             default: knit_fatal("knitx_block_dump(): invalid no. operands"); break;
         }
+    }
+    return KNIT_OK;
+}
+
+static int knitx_varname_dump(struct knit *knit, struct knit_varname *vn) { 
+    const char *loc = "UNK";
+    switch (vn->location) {
+        case KLOC_LOCAL_VAR: loc = "KLOC_LOCAL_VAR"; break;
+        case KLOC_ARG:       loc = "KLOC_ARG";       break;
+        case KLOC_GLOBAL_R:  loc = "KLOC_GLOBAL_R";  break;
+        case KLOC_GLOBAL_RW: loc = "KLOC_GLOBAL_RW"; break;
+        default: knit_assert_s(0,  "unreachable");   break;
+    }
+    fprintf(stderr, "\tname: %s\n"
+                    "\t location: %s\n", vn->name.str, loc);
+    if (vn->location == KLOC_ARG || vn->location == KLOC_LOCAL_VAR) {
+        fprintf(stderr, "\tidx: %d\n", vn->idx);
+    }
+    return KNIT_OK;
+}
+
+//dump only block var info
+static int knitx_curblock_dump(struct knit *knit, struct knit_curblk *curblk) { 
+    fprintf(stderr, "Current Block Variables:\n");
+    for (int i=0; i<curblk->locals.len; i++) {
+        struct knit_varname *vn = curblk->locals.data + i;
+        knitx_varname_dump(knit, vn);
     }
     return KNIT_OK;
 }
@@ -1015,7 +1087,7 @@ static int knitx_stack_dump(struct knit *knit, struct knit_stack *stack, int n_v
 
     fprintf(stderr, "Stack Values:\n");
     for (int i=stack->vals.len - n_values; i < stack->vals.len; i++) {
-        rv = knitx_obj_rep(knit, stack->vals.data[i], tmpstr1);                             KNIT_CRV_JMP(rv, cleanup_tmpstr2);
+        rv = knitx_obj_rep(knit, stack->vals.data[i], tmpstr1, 0);                             KNIT_CRV_JMP(rv, cleanup_tmpstr2);
         rv = knit_sprintf(knit, tmpstr2, "\ts[%d]: %s\n", i, tmpstr1->str, tmpstr1->len);   KNIT_CRV_JMP(rv, cleanup_tmpstr2);
         /* rv = knitx_str_strlappend(knit, outi_str, tmpstr2->str, tmpstr2->len);              KNIT_CRV_JMP(rv, cleanup_tmpstr2); */
         fprintf(stderr, "%s", tmpstr2->str);
@@ -1129,6 +1201,8 @@ static int knitx_exec_state_deinit(struct knit *knit, struct knit_exec_state *ex
     int rv = knitx_stack_deinit(knit, &exs->stack);
     return rv;
 }
+
+
 /*END OF EXECUTION STATE FUNCS*/
 
 /*
@@ -1272,25 +1346,46 @@ static int knitx_lexer_add_keyword_or_var(struct knit *knit, struct knit_lex *lx
     if (len == 8 && knit_strl_eq(lxr->input->str + beg, "function", 8)) {
         type = KAT_FUNCTION;
     }
-    return knitx_lexer_add_tok(knit, lxr, type, beg, lxr->offset - beg, lxr->lineno, lxr->colno, NULL);
+    else if (len == 6 && knit_strl_eq(lxr->input->str + beg, "return", 6)) {
+        type = KAT_RETURN;
+    }
+    else if (len == 5 && knit_strl_eq(lxr->input->str + beg, "false", 5)) {
+        type = KAT_FALSE;
+    }
+    else if (len == 4 && knit_strl_eq(lxr->input->str + beg, "true", 4)) {
+        type = KAT_TRUE;
+    }
+    else if (len == 4 && knit_strl_eq(lxr->input->str + beg, "null", 4)) {
+        type = KAT_NULL;
+    }
+    else if (len == 3 && knit_strl_eq(lxr->input->str + beg, "and", 3)) {
+        type = KAT_LAND;
+    }
+    else if (len == 2 && knit_strl_eq(lxr->input->str + beg, "or", 2)) {
+        type = KAT_LOR;
+    }
+    return knitx_lexer_add_tok(knit, lxr, type, beg, len, lxr->lineno, lxr->colno, NULL);
 }
 
 static int knitx_lexer_skip_wspace(struct knit *knit, struct knit_lex *lxr) {
-    while (lxr->offset < lxr->input->len && 
-                (lxr->input->str[lxr->offset] == ' '  ||
-                 lxr->input->str[lxr->offset] == '\t' ||
-                 lxr->input->str[lxr->offset] == '\n' ||
-                 lxr->input->str[lxr->offset] == '\r' ||
-                 lxr->input->str[lxr->offset] == '\v' ||
-                 lxr->input->str[lxr->offset] == '\f'   )) 
+    while (lxr->offset < lxr->input->len) 
     {
+        int c = lxr->input->str[lxr->offset];
+        if (!(c == ' '  || c == '\t' || c == '\n' ||
+             c == '\r' || c == '\v' || c == '\f'   ))
+        {
+            break;
+        }
         lxr->offset++;
+        if (c == '\n')
+            lxr->lineno++;
     }
     return KNIT_OK;
 }
 
 static int knitx_lexer_lex(struct knit *knit, struct knit_lex *lxr) {
     int rv = KNIT_OK;
+    int nextchar = 0;
 again:
     if (lxr->offset >= lxr->input->len) {
         if (!lxr->tokens.len || lxr->tokens.data[lxr->tokens.len-1].toktype != KAT_EOF) {
@@ -1298,12 +1393,55 @@ again:
         }
         return KNIT_OK;
     }
+    if (lxr->input->len - lxr->offset > 1)
+        nextchar = lxr->input->str[lxr->offset + 1];
+    else
+        nextchar = 0;
     switch (lxr->input->str[lxr->offset]) {
         case ';':   rv = knitx_lexer_add_tok(knit, lxr, KAT_SEMICOLON, lxr->offset, 1, lxr->lineno, lxr->colno, NULL); lxr->offset += 1; break;
         case ':':   rv = knitx_lexer_add_tok(knit, lxr, KAT_COLON,     lxr->offset, 1, lxr->lineno, lxr->colno, NULL); lxr->offset += 1; break;
         case '.':   rv = knitx_lexer_add_tok(knit, lxr, KAT_DOT,       lxr->offset, 1, lxr->lineno, lxr->colno, NULL); lxr->offset += 1; break;
         case ',':   rv = knitx_lexer_add_tok(knit, lxr, KAT_COMMA,     lxr->offset, 1, lxr->lineno, lxr->colno, NULL); lxr->offset += 1; break;
-        case '=':   rv = knitx_lexer_add_tok(knit, lxr, KAT_EQUALS,    lxr->offset, 1, lxr->lineno, lxr->colno, NULL); lxr->offset += 1; break;
+        case '!':   
+                    if (nextchar == '=') { //!=
+                        rv = knitx_lexer_add_tok(knit, lxr, KAT_OP_NEQ, lxr->offset, 2, lxr->lineno, lxr->colno, NULL);
+                        lxr->offset += 2;
+                    }
+                    else {
+                        rv = knitx_lexer_add_tok(knit, lxr, KAT_OP_NOT, lxr->offset, 1, lxr->lineno, lxr->colno, NULL);
+                        lxr->offset += 1;
+                    }
+                    break;
+        case '=':
+                    if (nextchar == '=') { //==
+                        rv = knitx_lexer_add_tok(knit, lxr, KAT_OP_EQ, lxr->offset, 2, lxr->lineno, lxr->colno, NULL);
+                        lxr->offset += 2;
+                    }
+                    else { //=
+                        rv = knitx_lexer_add_tok(knit, lxr, KAT_ASSIGN,  lxr->offset, 1, lxr->lineno, lxr->colno, NULL);
+                        lxr->offset += 1; break;
+                    }
+                    break;
+        case '>':
+                    if (nextchar == '=') { //>=
+                        rv = knitx_lexer_add_tok(knit, lxr, KAT_OP_GTEQ, lxr->offset, 2, lxr->lineno, lxr->colno, NULL);
+                        lxr->offset += 2;
+                    }
+                    else { //>
+                        rv = knitx_lexer_add_tok(knit, lxr, KAT_OP_GT,  lxr->offset, 1, lxr->lineno, lxr->colno, NULL);
+                        lxr->offset += 1; break;
+                    }
+                    break;
+        case '<':
+                    if (nextchar == '=') { //<=
+                        rv = knitx_lexer_add_tok(knit, lxr, KAT_OP_LTEQ, lxr->offset, 2, lxr->lineno, lxr->colno, NULL);
+                        lxr->offset += 2;
+                    }
+                    else { //<
+                        rv = knitx_lexer_add_tok(knit, lxr, KAT_OP_LT,  lxr->offset, 1, lxr->lineno, lxr->colno, NULL);
+                        lxr->offset += 1; break;
+                    }
+                    break;
         case '[':   rv = knitx_lexer_add_tok(knit, lxr, KAT_OBRACKET,  lxr->offset, 1, lxr->lineno, lxr->colno, NULL); lxr->offset += 1; break;
         case ']':   rv = knitx_lexer_add_tok(knit, lxr, KAT_CBRACKET,  lxr->offset, 1, lxr->lineno, lxr->colno, NULL); lxr->offset += 1; break;
         case '{':   rv = knitx_lexer_add_tok(knit, lxr, KAT_OCURLY,    lxr->offset, 1, lxr->lineno, lxr->colno, NULL); lxr->offset += 1; break;
@@ -1438,11 +1576,17 @@ static const char *knit_knit_tok_name(int name) {
         {KAT_EOF, "KAT_EOF"},
         {KAT_BOF, "KAT_BOF"}, 
         {KAT_FUNCTION, "KAT_FUNCTION"},
+        {KAT_RETURN, "KAT_RETURN"},
+        {KAT_TRUE,  "KAT_TRUE"},
+        {KAT_FALSE, "KAT_FALSE"},
+        {KAT_LAND, "KAT_LAND"},
+        {KAT_LOR,  "KAT_LOR"},
+        {KAT_NULL,  "KAT_NULL"},
         {KAT_STRLITERAL, "KAT_STRLITERAL"},
         {KAT_INTLITERAL, "KAT_INTLITERAL"},
         {KAT_VAR, "KAT_VAR"},
         {KAT_DOT, "KAT_DOT"},
-        {KAT_EQUALS, "KAT_EQUALS"},
+        {KAT_ASSIGN, "KAT_ASSIGN"},
         {KAT_OPAREN, "KAT_OPAREN"},
         {KAT_CPAREN, "KAT_CPAREN"},
         {KAT_ADD, "KAT_ADD"},
@@ -1453,6 +1597,13 @@ static const char *knit_knit_tok_name(int name) {
         {KAT_CBRACKET, "KAT_CBRACKET"},
         {KAT_OCURLY, "KAT_OCURLY"},
         {KAT_CCURLY, "KAT_CCURLY"},
+        {KAT_OP_NOT,    "KAT_OP_NOT"},
+        {KAT_OP_EQ,     "KAT_OP_EQ"},
+        {KAT_OP_NEQ,    "KAT_OP_NEQ"},
+        {KAT_OP_GT,     "KAT_OP_GT"},
+        {KAT_OP_LT,     "KAT_OP_LT"},
+        {KAT_OP_GTEQ,   "KAT_OP_GTEQ"},
+        {KAT_OP_LTEQ,   "KAT_OP_LTEQ"},
         {KAT_COMMA, "KAT_COMMA"},
         {KAT_COLON, "KAT_COLON"},
         {KAT_SEMICOLON, "KAT_SEMICOLON"},
@@ -1473,8 +1624,8 @@ static int knitx_knit_tok_repr_set_str(struct knit *knit, struct knit_lex *lxr, 
     }
     knit_assert_h(!!tok && !!str, "");
     knit_assert_h(tok->offset < lxr->input->len, "");
-    struct knit_str *tmp0;
-    struct knit_str *tmp1;
+    struct knit_str *tmp0 = NULL;
+    struct knit_str *tmp1 = NULL;
     int rv = knitx_str_new(knit, &tmp0);
     if (rv != KNIT_OK) 
         goto end;
@@ -1557,6 +1708,44 @@ static int knit_cur_block_destroy(struct knit *knit, struct knit_curblk *curblk)
     return KNIT_OK;
 }
 
+//assumes sets the new node's next to the current *outp pointer, so, at the beginning it must be NULL
+static int knit_patch_loc_new_or_insert(struct knit *knit, int instruction_address, struct knit_patch_list **outp) {
+    struct knit_patch_list *node = NULL;
+    void *p;
+    int rv = knitx_rmalloc(knit, sizeof *node, &p); KNIT_CRV(rv);
+    node = p;
+    node->next = *outp;
+    node->instruction_address = instruction_address;
+    *outp = node;
+    return KNIT_OK;
+}
+//destroys the whole list
+static int knit_patch_loc_list_destroy(struct knit *knit, struct knit_patch_list **outp) {
+    struct knit_patch_list *node = *outp;
+    struct knit_patch_list *next = NULL;
+    *outp = NULL;
+    while (node) {
+        next = node->next;
+        knitx_rfree(knit, node);
+        node = next;
+    }
+    return KNIT_OK;
+}
+
+static int knit_patch_loc_list_patch_and_destroy(struct knit *knit, struct knit_block *block, struct knit_patch_list **outp, int address) {
+    struct knit_patch_list *node = *outp;
+    knit_assert_h(address < KINSN_ADDR_UNK && address >= 0, "");
+    knit_assert_h(block->insns.len < KINSN_ADDR_UNK, "");
+    while (node) {
+        struct knit_insn *insn = block->insns.data + node->instruction_address;
+        knit_assert_h(node->instruction_address <= block->insns.len, ""); //<= because we assume there will be a next insn
+        knit_assert_h(insn->op1 == KINSN_ADDR_UNK, "");
+        insn->op1 = address;
+        node = node->next;
+    }
+    knit_patch_loc_list_destroy(knit, outp);
+    return KNIT_OK;
+}
 
 //should do prs init then do lex init (broken?)
 //NOTE lexer must be initialized after this
@@ -1582,7 +1771,10 @@ static int knit_error_expected(struct knit *knit, struct knit_prs *prs, int expe
     rv = knitx_lexer_peek_cur(knit, &prs->lex, &tok); KNIT_CRV_JMP(rv, fail_1);
     rv = knitx_knit_tok_repr_set_str(knit, &prs->lex, tok, &str1); KNIT_CRV_JMP(rv, fail_1);
     const char *exstr = knit_knit_tok_name(expected);
-    rv = knit_error(knit, KNIT_SYNTAX_ERR, "expected %s got %s", exstr, str1.str);
+    rv = knit_error(knit, KNIT_SYNTAX_ERR, "line %d:%d expected %s got %s", prs->lex.lineno,
+                                                                            prs->lex.colno,
+                                                                            exstr,
+                                                                            str1.str);
 fail_1: knitx_str_deinit(knit, &str1);
     return rv;
 }
@@ -1644,20 +1836,26 @@ struct ktokinfo {
 };
 //order is tied to knit_tok_info_idx()
 static const struct ktokinfo ktokinfo[] = {
-    {KAT_ADD, KAT_IS_BINOP | KAT_IS_LEFT_ASSOC,  1},
-    {KAT_SUB, KAT_IS_BINOP | KAT_IS_LEFT_ASSOC,  1},
-    {KAT_MUL, KAT_IS_BINOP | KAT_IS_LEFT_ASSOC,  2},
-    {KAT_DIV, KAT_IS_BINOP | KAT_IS_LEFT_ASSOC,  2},
+    {KAT_LOR,     KAT_IS_BINOP | KAT_IS_LEFT_ASSOC,  1},
+    {KAT_LAND,    KAT_IS_BINOP | KAT_IS_LEFT_ASSOC,  2},
+    {KAT_OP_EQ,   KAT_IS_BINOP | KAT_IS_LEFT_ASSOC,  3},
+    {KAT_OP_NEQ,  KAT_IS_BINOP | KAT_IS_LEFT_ASSOC,  3},
+    {KAT_OP_GT,   KAT_IS_BINOP | KAT_IS_LEFT_ASSOC,  4},
+    {KAT_OP_LT,   KAT_IS_BINOP | KAT_IS_LEFT_ASSOC,  4},
+    {KAT_OP_GTEQ, KAT_IS_BINOP | KAT_IS_LEFT_ASSOC,  4},
+    {KAT_OP_LTEQ, KAT_IS_BINOP | KAT_IS_LEFT_ASSOC,  4},
+    {KAT_ADD,     KAT_IS_BINOP | KAT_IS_LEFT_ASSOC,  5},
+    {KAT_SUB,     KAT_IS_BINOP | KAT_IS_LEFT_ASSOC,  5},
+    {KAT_MUL,     KAT_IS_BINOP | KAT_IS_LEFT_ASSOC,  6},
+    {KAT_DIV,     KAT_IS_BINOP | KAT_IS_LEFT_ASSOC,  6},
     //code assumes minimum is 1
 };
 #define NOPINFO (sizeof ktokinfo / sizeof ktokinfo[0])
 //returns an index to ktokinfo
 static inline int knit_tok_info_idx(int toktype) {
-    switch (toktype) {
-        case KAT_ADD: return 0; break;
-        case KAT_SUB: return 1; break;
-        case KAT_MUL: return 2; break;
-        case KAT_DIV: return 3; break;
+    for (int i=0; i<(int)NOPINFO; i++) {
+        if (toktype == ktokinfo[i].toktype)
+            return i;
     }
     return -1;
 }
@@ -1733,6 +1931,81 @@ static inline int knit_tok_is(int toktype, int iswhat) {
     note how statements and local variable definitions are interleaved
     while parsing we'll have a map of local variable names to integers starting from 0
     and at runtime n stack values will be allocated for them
+
+
+    globals
+
+    at file scope, every variable is a global
+    in functions, assignment to variables is local by default, access before assignment makes 
+    the variable implictly refer to a global, and no assignment is allowed
+    to assign to globals in functions use g.VARNAME
+
+
+    Shortcircuiting and branches
+
+    suppose we have:
+    cond1 = C1 and C2
+    cond2 = C3 or C4
+
+    if C1 is false then we can't evaluate C2, if it is true  then we evaluate C2
+
+    insns will look like:
+    L1:
+        TEST C1
+        JMPFALSE L3
+        TEST C2
+        JMPFALSE L3
+        JMP L4
+        EMIT_TRUE
+        -----
+    L3:
+        EMIT_FALSE
+    L4:                 #rest of expression
+
+    
+    in case of "or"
+    if C3 is true  then we can't evaluate C4, if it is false then we evaluate C4
+    insns will look like
+    L1:
+        TEST C3
+        JMPTRUE L3
+        TEST C4
+        JMPTRUE L3
+        EMIT_FALSE
+        JMP L4
+        -----
+    L3:
+        EMIT_TRUE
+    L4:                 #rest of expression
+
+
+    [if statements]
+
+L1:
+    if (C1) {
+        S1
+        S2
+        ..
+    }
+    else {
+L2:
+        S3
+        S4
+        ..
+    }
+L3:
+
+    insns will look like:
+L1:
+    TEST C1
+    JMP_FALSE L2
+    Do S1
+    Do S2
+    JMP  L3
+L2:
+    Do S3
+    Do S4
+L3:
         
 */
 
@@ -1764,8 +2037,8 @@ static int kexpr_save_constant(struct knit *knit, struct knit_prs *prs,  struct 
         obj = ktobj(expr->u.str);
     }
     else if (expr->exptype == KAX_VAR_REF) {
-        knit_assert_h(!!expr->u.str && !!expr->u.str->len, "expected valid var ref str");
-        obj = ktobj(expr->u.str);
+        knit_assert_h(!!expr->u.varref.name && !!expr->u.varref.name->len, "expected valid var ref str");
+        obj = ktobj(expr->u.varref.name);
     }
     else if (expr->exptype == KAX_FUNCTION) {
         obj = ktobj(expr->u.kfunc);
@@ -1811,24 +2084,24 @@ static int knitx_expr_destroy_prefix(struct knit *knit, struct knit_expr *expr) 
 }
 
 //doesn't own name
-//possible success return values: KNIT_RETRIEVED, KNIT_NOT_FOUND
-static int knitx_get_local_var_idx(struct knit *knit, struct knit_curblk *curblk, struct knit_str *name, struct knit_varname **vnp) {
+//possible return values: KNIT_RETRIEVED, KNIT_NOT_FOUND
+static int knitx_get_block_var_idx(struct knit *knit, struct knit_curblk *curblk, struct knit_str *name, int *vn_idx) {
     for (int i=0; i<curblk->locals.len; i++) {
         struct knit_varname *vn = curblk->locals.data + i;
         knit_assert_s(vn->name.len > 0, "");
         if (knitx_str_streq(knit, name, &vn->name)) {
-            *vnp = vn;
+            *vn_idx = i;
             return KNIT_RETRIEVED;
         }
     }
-    *vnp = NULL;
+    *vn_idx = -1;
     return KNIT_NOT_FOUND;
 }
 //doesn't own name
 //add_location: one of the values in KNIT_VARLOC
-static int knitx_add_local_var(struct knit *knit, struct knit_curblk *curblk, struct knit_str *name, int add_location, struct knit_varname **vnp) {
-    *vnp = NULL;
-    if (knitx_get_local_var_idx(knit, curblk, name, vnp) != KNIT_NOT_FOUND) {
+static int knitx_add_block_var(struct knit *knit, struct knit_curblk *curblk, struct knit_str *name, int add_location, int *vn_idx) {
+    *vn_idx = -1;
+    if (knitx_get_block_var_idx(knit, curblk, name, vn_idx) != KNIT_NOT_FOUND) {
         return KNIT_DUPLICATE_KEY;
     }
     struct knit_varname vn = {0};
@@ -1844,21 +2117,9 @@ static int knitx_add_local_var(struct knit *knit, struct knit_curblk *curblk, st
         knitx_str_deinit(knit, &vn.name);
         return knit_error(knit, KNIT_RUNTIME_ERR, "couldn't push local variable to varname array");
     }
-    *vnp = curblk->locals.data + curblk->locals.len - 1;
+    *vn_idx = curblk->locals.len - 1;
     return KNIT_OK;
 }
-//doesn't own name
-//possible success return values: KNIT_CREATED_NEW,  KNIT_RETRIEVED, 
-//add_location: one of the values in KNIT_VARLOC
-static int knitx_add_or_get_local_var(struct knit *knit, struct knit_curblk *curblk, struct knit_str *name, int add_location, struct knit_varname **vnp) {
-    int rv = knitx_get_local_var_idx(knit, curblk, name, vnp);
-    if (rv == KNIT_NOT_FOUND) {
-        rv = knitx_add_local_var(knit, curblk, name, add_location, vnp); KNIT_CRV(rv);
-        return KNIT_CREATED_NEW;
-    }
-    return rv; //either succeeded, or some other error occured
-}
-
 
 static int knitx_expr(struct knit *knit, struct knit_prs *prs);//fwd
 static int kexpr_expr(struct knit *knit, struct knit_prs *prs, int min_prec); //fwd
@@ -1911,8 +2172,11 @@ static int kexpr_funcdef(struct knit *knit, struct knit_prs *prs) {
         struct knit_str *arg_name = NULL;
         rv = knitx_str_new(knit, &arg_name); KNIT_CRV(rv);
         rv = knitx_tok_extract_to_str(knit, &prs->lex, K_CURR_TOK(), arg_name); /*ml*/ KNIT_CRV(rv);
-        struct knit_varname *vn = NULL;
-        rv = knitx_add_local_var(knit, curblk, arg_name, KLOC_ARG, &vn);
+        int vn_idx = -1;
+        if (knitx_str_streqc(knit, arg_name, "g")) {
+            knit_fatal_parse(prs, "g is a reserved keyword, it is not allowed as an argument name.");
+        }
+        rv = knitx_add_block_var(knit, curblk, arg_name, KLOC_ARG, &vn_idx); KNIT_CRV(rv);
         K_ADV_TOK_CRV();
         if (!K_CURR_MATCHES(KAT_COMMA)) {
             break;
@@ -1957,6 +2221,7 @@ static int kexpr_funcdef(struct knit *knit, struct knit_prs *prs) {
 
 #ifdef KNIT_DEBUG_PRINT
     knitx_block_dump(knit, &kfunc->block);
+    knitx_curblock_dump(knit, curblk);
 #endif
 
     /*this destroys everything in curblock except .block itsel, (but what if we need debug info?, it should be optionally saved somewhere)f*/
@@ -2015,7 +2280,7 @@ static int kexpr_prefix(struct knit *knit, struct knit_prs *prs) {
             prs_expr->u.call.args = arglist;
         }
         else if (K_CURR_MATCHES(KAT_OBRACKET)) {
-            knit_fatal("array indexing is currently not implemented");
+            knit_fatal_parse(prs, "array indexing is currently not implemented");
         }
     }
     return KNIT_OK;
@@ -2042,8 +2307,9 @@ static int kexpr_atom(struct knit *knit, struct knit_prs *prs, int min_prec) {
     }
     else if (K_CURR_MATCHES(KAT_VAR)) {
         prs_expr->exptype = KAX_VAR_REF;
-        rv = knitx_str_new(knit, &prs_expr->u.str); /*ml*/ KNIT_CRV(rv);
-        rv = knitx_tok_extract_to_str(knit, &prs->lex, K_CURR_TOK(), prs_expr->u.str); /*ml*/ KNIT_CRV(rv);
+        prs_expr->u.varref.varname_idx = -1; //sentinel
+        rv = knitx_str_new(knit, &prs_expr->u.varref.name); /*ml*/ KNIT_CRV(rv);
+        rv = knitx_tok_extract_to_str(knit, &prs->lex, K_CURR_TOK(), prs_expr->u.varref.name); /*ml*/ KNIT_CRV(rv);
         K_ADV_TOK_CRV();
     }
     else if (K_CURR_MATCHES(KAT_STRLITERAL)) {
@@ -2052,9 +2318,21 @@ static int kexpr_atom(struct knit *knit, struct knit_prs *prs, int min_prec) {
         rv = knitx_tok_extract_to_str(knit, &prs->lex, K_CURR_TOK(), prs_expr->u.str); KNIT_CRV(rv);
         knit_assert_h( (prs_expr->u.str->len >= 2) && 
                         ((prs_expr->u.str->str[0] == '\'' && prs_expr->u.str->str[prs_expr->u.str->len - 1] == '\'') ||
-                         (prs_expr->u.str->str[0] == '\'' && prs_expr->u.str->str[prs_expr->u.str->len - 1] == '\'')   ),
+                         (prs_expr->u.str->str[0] == '"' && prs_expr->u.str->str[prs_expr->u.str->len - 1] == '"')   ),
                        "expected quoted string literal");
         rv = knitx_str_mutsubstr(knit, prs_expr->u.str, 1, prs_expr->u.str->len - 1); KNIT_CRV(rv);
+        K_ADV_TOK_CRV();
+    }
+    else if (K_CURR_MATCHES(KAT_NULL)) {
+        prs_expr->exptype = KAX_LITERAL_NULL;
+        K_ADV_TOK_CRV();
+    }
+    else if (K_CURR_MATCHES(KAT_TRUE)) {
+        prs_expr->exptype = KAX_LITERAL_TRUE;
+        K_ADV_TOK_CRV();
+    }
+    else if (K_CURR_MATCHES(KAT_FALSE)) {
+        prs_expr->exptype = KAX_LITERAL_FALSE;
         K_ADV_TOK_CRV();
     }
     else {
@@ -2095,18 +2373,37 @@ static int knitx_emit_3(struct knit *knit, struct knit_prs *prs, int opcode, int
     return KNIT_OK;
 }
 
-static int knitx_emit_expr_eval(struct knit *knit, struct knit_prs *prs, struct knit_expr *expr); //fwd
+enum knit_eval_context {
+    KEVAL_VALUE, //pushes on the stack
+    KEVAL_BOOLEAN, //in case of boolean expressions it doesn't push, instead uses ex.last_cond
+};
+static int knitx_emit_expr_eval(struct knit *knit, struct knit_prs *prs, struct knit_expr *expr, int eval_ctx); //fwd
 
 //emit instructions that do assignment, taking in consideration what kind of lhs we have
 static int knitx_emil_assignment(struct knit *knit, struct knit_prs *prs, struct knit_expr *lhs, struct knit_expr *rhs) {
     int rv = KNIT_OK;
     if (lhs->exptype == KAX_VAR_REF) {
-        struct knit_varname *vn = NULL;
-        int rv = knitx_add_or_get_local_var(knit, prs->curblk, lhs->u.str, KLOC_LOCAL_VAR, &vn);
-        if (rv == KNIT_CREATED_NEW || rv == KNIT_RETRIEVED) {
-            rv = knitx_emit_expr_eval(knit, prs, rhs); /*ml*/ KNIT_CRV(rv); //evaluate the result of rhs and push it
-
-            int offset = 0;
+        knit_assert_s(lhs->u.varref.varname_idx == - 1,  "");
+        int vn_idx = -1;
+        struct knit_str *name = lhs->u.varref.name;
+        rv = knitx_get_block_var_idx(knit, prs->curblk, name, &vn_idx);
+        if (rv == KNIT_NOT_FOUND) {
+            if (knitx_str_streqc(knit, lhs->u.varref.name, "g")) {
+                knit_fatal_parse(prs, "assignment to g is not allowed.");
+            }
+            if (knitx_is_in_filescope(knit, prs)) {
+                rv = knitx_add_block_var(knit, prs->curblk, name, KLOC_GLOBAL_RW, &vn_idx); KNIT_CRV(rv);
+            }
+            else {
+                rv = knitx_add_block_var(knit, prs->curblk, name, KLOC_LOCAL_VAR, &vn_idx); KNIT_CRV(rv);
+            }
+        }
+        knit_assert_s(vn_idx >= 0,  "");
+        lhs->u.varref.varname_idx = vn_idx;
+        struct knit_varname *vn = prs->curblk->locals.data + vn_idx;
+        if (vn->location == KLOC_LOCAL_VAR || vn->location == KLOC_ARG)  {
+            rv = knitx_emit_expr_eval(knit, prs, rhs, KEVAL_VALUE); /*ml*/ KNIT_CRV(rv); 
+            int offset = 0; //stack offset relative to bsp
             if (vn->location == KLOC_LOCAL_VAR) {
                 offset = vn->idx;
             }
@@ -2116,125 +2413,229 @@ static int knitx_emil_assignment(struct knit *knit, struct knit_prs *prs, struct
                 offset = -vn->idx - 2; 
             }
             else {
-                knit_fatal("variable '%s' unexpected location", vn->name.str); 
+                knit_fatal_parse(prs, "variable '%s' unexpected location", vn->name.str); 
             }
-
             rv = knitx_emit_2(knit, prs, KLSTORE, offset); KNIT_CRV(rv);
         }
+        else if (vn->location == KLOC_GLOBAL_R)  {
+            //the variable is an implicit global, it cannot be assigned to
+            knit_fatal_parse(prs, "variable '%s' is used before assignment", name->str);
+        }
+        else if (vn->location == KLOC_GLOBAL_RW)  {
+            int idx = -1;
+            rv = knitx_current_block_add_strl_constant(knit, prs, name->str, name->len, &idx); /*ml*/ KNIT_CRV(rv); 
+            rv = knitx_emit_2(knit, prs, KCLOAD, idx); /*ml*/ KNIT_CRV(rv); //load name of global variable
+            rv = knitx_emit_expr_eval(knit, prs, rhs, KEVAL_VALUE); /*ml*/ KNIT_CRV(rv); //evaluate the result of rhs and push it
+            rv = knitx_emit_1(knit, prs, K_GLB_STORE);
+        }
         else {
-            return rv; //error
+            knit_assert_s(0,  "unreachable");
         }
     }
     else if (lhs->exptype == KAX_OBJ_DOT) {
         struct knit_expr *parent = lhs->u.prefix.parent;
         struct knit_varname_chain *chain = lhs->u.prefix.chain;
         knit_assert_h(parent && chain && chain->name, "invalid KAX_OBJ_DOT object");
-        if (parent->exptype == KAX_VAR_REF && knitx_str_streqc(knit, parent->u.str, "g")) {
+        if (parent->exptype == KAX_VAR_REF && knitx_str_streqc(knit, parent->u.varref.name, "g")) {
             //hardcoded case for trivial global variables (the rest is not implemeneted)
             //globals are accessed by: g.VARNAME
-            //
             if (chain->next) {
-                knit_fatal("obj.obj style access not implemented");
+                knit_fatal_parse(prs, "obj.obj style access not implemented");
             }
             struct knit_str *var_name = chain->name;
             int idx = -1;
             //save name of global variable in function constants
             rv = knitx_current_block_add_strl_constant(knit, prs, var_name->str, var_name->len, &idx); /*ml*/ KNIT_CRV(rv); 
             rv = knitx_emit_2(knit, prs, KCLOAD, idx); /*ml*/ KNIT_CRV(rv); //load name of global variable
-            rv = knitx_emit_expr_eval(knit, prs, rhs); /*ml*/ KNIT_CRV(rv); //evaluate the result of rhs and push it
+            rv = knitx_emit_expr_eval(knit, prs, rhs, KEVAL_VALUE); /*ml*/ KNIT_CRV(rv); //evaluate the result of rhs and push it
             rv = knitx_emit_1(knit, prs, K_GLB_STORE);
         }
         else {
-            knit_fatal("obj.obj style access not implemented");
+            knit_fatal_parse(prs, "obj.obj style access not implemented");
         }
     }
     return KNIT_OK;
 }
 
+static int knit_is_logical_op_token(int toktype) {
+    return  toktype == KAT_LAND || toktype == KAT_LOR;
+}
+
+//is a boolean test op
+static int knit_is_test_op(int op) {
+    return op == KTESTEQ ||   
+           op == KTESTNEQ ||  
+           op == KTESTGT ||   
+           op == KTESTLT ||   
+           op == KTESTLTEQ || 
+           op == KTESTGTEQ || 
+           op == KTEST  ||
+           op == KTESTNOT;
+}
+
+static int knitx_emit_logical_operation(struct knit *knit,
+                                        struct knit_prs *prs,
+                                        struct knit_expr *expr,
+                                        int eval_ctx)
+{
+    knit_assert_h(expr != &prs->curblk->expr && expr->exptype == KAX_LOGICAL_BINOP, "");
+    int rv = KNIT_OK;
+    struct knit_block *block = &prs->curblk->block;
+    if (expr->u.logic_bin.op == KAT_LAND || expr->u.logic_bin.op == KAT_LOR) {
+        rv = knitx_emit_expr_eval(knit, prs, expr->u.logic_bin.lhs, KEVAL_BOOLEAN); KNIT_CRV(rv);
+        if (expr->u.logic_bin.op == KAT_LAND) {
+            knitx_emit_2(knit, prs, KJMPFALSE, KINSN_ADDR_UNK);
+        }
+        else {
+            knit_assert_h(expr->u.logic_bin.op == KAT_LOR, "");
+            knitx_emit_2(knit, prs, KJMPTRUE, KINSN_ADDR_UNK);
+        }
+        rv = knit_patch_loc_new_or_insert(knit, block->insns.len - 1, &expr->u.logic_bin.plist); KNIT_CRV(rv);
+        rv = knitx_emit_expr_eval(knit, prs, expr->u.logic_bin.rhs, KEVAL_BOOLEAN); KNIT_CRV(rv);
+        int address = block->insns.len; 
+        rv = knit_patch_loc_list_patch_and_destroy(knit, block, &expr->u.logic_bin.plist, address); KNIT_CRV(rv);
+        if (eval_ctx != KEVAL_BOOLEAN) {
+            rv = knitx_emit_1(knit, prs, KSAVETEST); /*ml*/ KNIT_CRV(rv);
+        }
+    }
+    else {
+        knit_fatal_parse(prs, "unexpected binary logical operation");
+    }
+    return KNIT_OK;
+}
+
+//the result will be in ex.last_cond
+static int knitx_test_bool(struct knit *knit, struct knit_obj *obj) {
+    if (obj->u.ktype == KNIT_NULL || obj->u.ktype == KNIT_FALSE)
+        knit->ex.last_cond = 0;
+    else {
+        knit->ex.last_cond = 1;
+    }
+    return KNIT_OK;
+}
 
 //turn an expr into a sequence of bytecode insns that result in its result being at the top of the stack
-static int knitx_emit_expr_eval(struct knit *knit, struct knit_prs *prs, struct knit_expr *expr) {
+static int knitx_emit_expr_eval(struct knit *knit, struct knit_prs *prs, struct knit_expr *expr, int eval_ctx) {
     knit_assert_h(expr != &prs->curblk->expr, "");
     int rv = KNIT_OK;
     if (expr->exptype == KAX_CALL) {
         for (int i = 0; i<expr->u.call.args.len; i++) {
             struct knit_expr *arg_expr = expr->u.call.args.data[i]; 
-            rv = knitx_emit_expr_eval(knit, prs, arg_expr); KNIT_CRV(rv);
+            rv = knitx_emit_expr_eval(knit, prs, arg_expr, KEVAL_VALUE); KNIT_CRV(rv);
         }
-        rv = knitx_emit_expr_eval(knit, prs, expr->u.call.called); KNIT_CRV(rv);
+        rv = knitx_emit_expr_eval(knit, prs, expr->u.call.called, KEVAL_VALUE); KNIT_CRV(rv);
         rv = knitx_emit_2(knit, prs, KCALL, expr->u.call.args.len); KNIT_CRV(rv);
         //TODO at this point the stack will have return values
+        //this will be broken if a function returns more than 1, or returns 0 values
+        if (eval_ctx == KEVAL_BOOLEAN) {
+            rv = knitx_emit_1(knit, prs, KTEST); KNIT_CRV(rv);
+        }
     }
     else if (expr->exptype == KAX_FUNCTION) {
         int idx = -1;
         rv = kexpr_save_constant(knit, prs, expr, &idx); /*ml*/ KNIT_CRV(rv);
         rv = knitx_emit_2(knit, prs, KCLOAD, idx); /*ml*/ KNIT_CRV(rv);
+        if (eval_ctx == KEVAL_BOOLEAN) {
+            rv = knitx_emit_1(knit, prs, KTEST); KNIT_CRV(rv);
+        }
     }
     else if (expr->exptype == KAX_LITERAL_STR) {
         int idx = -1;
         rv = kexpr_save_constant(knit, prs, expr, &idx); /*ml*/ KNIT_CRV(rv);
         rv = knitx_emit_2(knit, prs, KCLOAD, idx); /*ml*/ KNIT_CRV(rv);
+        if (eval_ctx == KEVAL_BOOLEAN) {
+            rv = knitx_emit_1(knit, prs, KTEST); KNIT_CRV(rv);
+        }
     }
     else if (expr->exptype == KAX_LITERAL_INT) {
         int idx = -1;
         rv = kexpr_save_constant(knit, prs, expr, &idx); /*ml*/ KNIT_CRV(rv);
         rv = knitx_emit_2(knit, prs, KCLOAD, idx); /*ml*/ KNIT_CRV(rv);
+        if (eval_ctx == KEVAL_BOOLEAN) {
+            rv = knitx_emit_1(knit, prs, KTEST); KNIT_CRV(rv);
+        }
     }
     else if (expr->exptype == KAX_BIN_OP) {
-        rv = knitx_emit_expr_eval(knit, prs, expr->u.bin.lhs); /*ml*/ KNIT_CRV(rv);
-        rv = knitx_emit_expr_eval(knit, prs, expr->u.bin.rhs); /*ml*/ KNIT_CRV(rv);
+        rv = knitx_emit_expr_eval(knit, prs, expr->u.bin.lhs, KEVAL_VALUE); /*ml*/ KNIT_CRV(rv);
+        rv = knitx_emit_expr_eval(knit, prs, expr->u.bin.rhs, KEVAL_VALUE); /*ml*/ KNIT_CRV(rv);
         rv = knitx_emit_1(knit, prs, expr->u.bin.op); /*ml*/ KNIT_CRV(rv);
+        if (knit_is_test_op(expr->u.bin.op) && eval_ctx != KEVAL_BOOLEAN) {
+            rv = knitx_emit_1(knit, prs, KSAVETEST); /*ml*/ KNIT_CRV(rv);
+        }
+        else if (eval_ctx == KEVAL_BOOLEAN) {
+            rv = knitx_emit_1(knit, prs, KTEST); KNIT_CRV(rv);
+        }
+        //otherwise it is a test op, and we don't need to push its result on the stack
     }
     else if (expr->exptype == KAX_ASSIGNMENT) {
         struct knit_expr *lhs = expr->u.bin.lhs;
         struct knit_expr *rhs = expr->u.bin.rhs;
         rv = knitx_emil_assignment(knit, prs, lhs, rhs);
+        if (eval_ctx == KEVAL_BOOLEAN) {
+            //this should be impossible during parsing
+            knit_fatal_parse(prs, "error, trying to get the truth value of an assignment expression");
+        }
     }
     else if (expr->exptype == KAX_LITERAL_LIST) {
-        knit_fatal("expr eval currently not implemented");
+        knit_fatal_parse(prs, "expr eval currently not implemented");
     }
     else if (expr->exptype == KAX_LIST_INDEX) {
-        knit_fatal("expr eval currently not implemented");
+        knit_fatal_parse(prs, "expr eval currently not implemented");
     }
     else if (expr->exptype == KAX_LIST_SLICE) {
-        knit_fatal("expr eval currently not implemented");
+        knit_fatal_parse(prs, "expr eval currently not implemented");
     }
     else if (expr->exptype == KAX_VAR_REF) {
-        struct knit_varname *vn = NULL;
-        rv = knitx_get_local_var_idx(knit, prs->curblk, expr->u.str, &vn);
+        int vn_idx = -1;
+        struct knit_str *name = expr->u.varref.name;
+        knit_assert_s(expr->u.varref.varname_idx == - 1,  "");
+        knit_assert_s(name && name->len,  "");
+        rv = knitx_get_block_var_idx(knit, prs->curblk, name, &vn_idx);
         if (rv == KNIT_NOT_FOUND) {
             //promote to global
-            knit_fatal("variable '%s' implicitly refers to a global variable, this way of access is currently not implemented (use g.)", expr->u.str->str);
+            rv = knitx_add_block_var(knit, prs->curblk, name, KLOC_GLOBAL_R, &vn_idx); KNIT_CRV(rv);
         }
         else if (rv != KNIT_RETRIEVED) {
             return rv; //error
         }
-        if (vn->location != KLOC_LOCAL_VAR &&  vn->location != KLOC_ARG) {
-            knit_fatal("variable '%s' local index is unexpected", vn->name.str); 
-            //this will probably be promoted to global too
+        expr->u.varref.varname_idx = vn_idx;
+        struct knit_varname *vn = prs->curblk->locals.data + vn_idx;
+
+        if (vn->location == KLOC_GLOBAL_R || vn->location == KLOC_GLOBAL_RW) {
+            int idx = -1;
+            //save name of global variable in function constants
+            rv = knitx_current_block_add_strl_constant(knit, prs, name->str, name->len, &idx); /*ml*/ KNIT_CRV(rv); 
+            rv = knitx_emit_2(knit, prs, KCLOAD, idx); /*ml*/ KNIT_CRV(rv);
+            rv = knitx_emit_1(knit, prs, K_GLB_LOAD); /*ml*/ KNIT_CRV(rv);
         }
-        int offset = 0;
-        if (vn->location == KLOC_LOCAL_VAR) {
-            offset = vn->idx;
-        }
-        else if (vn->location == KLOC_ARG) {
-            //this is done because of how the stack is set up, we subtract from bsp(the args are supposed to be there),
-            //and we assume the current function is pushed last
-            offset = -vn->idx - 2; 
+        else if (vn->location == KLOC_LOCAL_VAR || vn->location == KLOC_ARG) {
+            int offset = 0;
+            if (vn->location == KLOC_LOCAL_VAR) {
+                offset = vn->idx;
+            }
+            else if (vn->location == KLOC_ARG) {
+                offset = -vn->idx - 2; // see [Stack Layout], we assume the current called function is pushed last
+            }
+            else {
+                knit_fatal_parse(prs, "variable '%s' unexpected location", vn->name.str); 
+            }
+            rv = knitx_emit_2(knit, prs, KLLOAD, offset); KNIT_CRV(rv);
+            if (eval_ctx == KEVAL_BOOLEAN) {
+                rv = knitx_emit_1(knit, prs, KTEST); KNIT_CRV(rv);
+            }
         }
         else {
-            knit_fatal("variable '%s' unexpected location", vn->name.str); 
+            knit_assert_s(0,  "unreachable");
         }
-        rv = knitx_emit_2(knit, prs, KLLOAD, offset); KNIT_CRV(rv);
     }
     else if (expr->exptype == KAX_OBJ_DOT) {
         knit_assert_h(!!expr->u.prefix.chain, "invalid KAX_OBJ_DOT object");
         struct knit_expr *parent = expr->u.prefix.parent;
         struct knit_varname_chain *chain = expr->u.prefix.chain;
         knit_assert_h(parent && chain && chain->name, "invalid KAX_OBJ_DOT object");
-        if (parent->exptype == KAX_VAR_REF && knitx_str_streqc(knit, parent->u.str, "g")) {
+        if (parent->exptype == KAX_VAR_REF && knitx_str_streqc(knit, parent->u.varref.name, "g")) {
             if (chain->next) {
-                knit_fatal("obj.obj style access not implemented");
+                knit_fatal_parse(prs, "obj.obj style access not implemented");
             }
             //hardcoded case for global variables globals are accessed by: g.VARNAME
             int idx = -1;
@@ -2245,17 +2646,40 @@ static int knitx_emit_expr_eval(struct knit *knit, struct knit_prs *prs, struct 
             rv = knitx_emit_1(knit, prs, K_GLB_LOAD); /*ml*/ KNIT_CRV(rv);
         }
         else {
-            knit_fatal("obj.obj style access not implemented, (only globals are supported)");
+            knit_fatal_parse(prs, "obj.obj style access not implemented, (only globals are supported)");
+        }
+        if (eval_ctx == KEVAL_BOOLEAN) {
+            rv = knitx_emit_1(knit, prs, KTEST); KNIT_CRV(rv);
         }
     }
+    else if (expr->exptype == KAX_LITERAL_NULL  ||
+             expr->exptype == KAX_LITERAL_TRUE  ||
+             expr->exptype == KAX_LITERAL_FALSE   ) 
+    {
+        int emkind = -1;
+        switch (expr->exptype) {
+            case KAX_LITERAL_TRUE:  emkind = KEMTRUE;  break;
+            case KAX_LITERAL_FALSE: emkind = KEMFALSE; break;
+            case KAX_LITERAL_NULL:  emkind = KEMNULL;  break;
+            default: knit_fatal_parse(prs, "unexpected experssion type");
+        }
+        rv = knitx_emit_2(knit, prs, KEMIT, emkind); KNIT_CRV(rv);
+        if (eval_ctx == KEVAL_BOOLEAN) {
+            //this can be optimized to const fold this during compilation
+            rv = knitx_emit_1(knit, prs, KTEST); KNIT_CRV(rv);
+        }
+    }
+    else if (expr->exptype == KAX_LOGICAL_BINOP) {
+        rv = knitx_emit_logical_operation(knit, prs, expr, eval_ctx); KNIT_CRV(rv);
+    }
     else {
-        knit_assert_h(0, "unknown expr type");
+        knit_fatal_parse(prs, "unexpected experssion type");
     }
     return KNIT_OK;
 }
 static int knitx_emit_ret(struct knit *knit, struct knit_prs *prs, int count) {
     if (count > 1 || count < 0)
-        knit_fatal("returning multiple values is not implemented");
+        knit_fatal_parse(prs, "returning multiple values is not implemented");
     return knitx_emit_2(knit, prs, KRET, count);
 }
 
@@ -2263,33 +2687,42 @@ static int knitx_emit_pop(struct knit *knit, struct knit_prs *prs, int count) {
     return knitx_emit_2(knit, prs, KPOP, count);
 }
 
+
 //turn a binary op into a sequence of bytecode insns that result in its result being at the top of the stack
 static int kexpr_binoperation(struct knit *knit, struct knit_prs *prs, int op_token, struct knit_expr *lhs_expr, struct knit_expr *rhs_expr) {
-    int insn_type = 0;
-    if (op_token == KAT_ADD) {
-        insn_type = KADD;
-    }
-    else if (op_token == KAT_SUB) {
-        insn_type = KSUB;
-    }
-    else if (op_token == KAT_MUL) {
-        insn_type = KMUL;
-    }
-    else if (op_token == KAT_DIV) {
-        insn_type = KDIV;
-    }
-    else if (op_token == KAT_MOD) {
-        insn_type = KMOD;
+    struct knit_expr *prs_expr = &prs->curblk->expr;
+    if (knit_is_logical_op_token(op_token)) {
+        prs_expr->exptype = KAX_LOGICAL_BINOP;
+        prs_expr->u.logic_bin.op = op_token; //yeah, technically storing the token type, this should probably done for the rest of them
+        prs_expr->u.logic_bin.lhs = lhs_expr;
+        prs_expr->u.logic_bin.rhs = rhs_expr;
+        prs_expr->u.logic_bin.plist = NULL;
     }
     else {
-        knit_assert_h(0, "invalid op type");
+        int insn_type = 0;
+        switch (op_token) {
+            case KAT_ADD:     insn_type = KADD;       break;
+            case KAT_SUB:     insn_type = KSUB;       break;
+            case KAT_MUL:     insn_type = KMUL;       break;
+            case KAT_DIV:     insn_type = KDIV;       break;
+            case KAT_MOD:     insn_type = KMOD;       break;
+            case KAT_OP_EQ:   insn_type = KTESTEQ;    break;
+            case KAT_OP_NEQ:  insn_type = KTESTNEQ;   break;
+            case KAT_OP_GT:   insn_type = KTESTGT;    break;
+            case KAT_OP_LT:   insn_type = KTESTLT;    break;
+            case KAT_OP_GTEQ: insn_type = KTESTGTEQ;  break;
+            case KAT_OP_LTEQ: insn_type = KTESTLTEQ;  break;
+            case KAT_OP_NOT:  insn_type = KTESTNOT;   break;
+            default: {
+                knit_assert_h(0, "invalid op type");
+            } break;
+        }
+        
+        prs_expr->exptype = KAX_BIN_OP;
+        prs_expr->u.bin.op = insn_type;
+        prs_expr->u.bin.lhs = lhs_expr;
+        prs_expr->u.bin.rhs = rhs_expr;
     }
-    
-    struct knit_expr *prs_expr = &prs->curblk->expr;
-    prs_expr->exptype = KAX_BIN_OP;
-    prs_expr->u.bin.op = insn_type;
-    prs_expr->u.bin.lhs = lhs_expr;
-    prs_expr->u.bin.rhs = rhs_expr;
     return KNIT_OK;
 }
 static int kexpr_expr(struct knit *knit, struct knit_prs *prs, int min_prec) {
@@ -2363,26 +2796,41 @@ static int knitx_stmt(struct knit *knit, struct knit_prs *prs) {
              K_CURR_MATCHES(KAT_OPAREN)     ||
              K_CURR_MATCHES(KAT_OBRACKET)   ||
              K_CURR_MATCHES(KAT_FUNCTION)   ||
+             K_CURR_MATCHES(KAT_OP_NOT)     ||
+             K_CURR_MATCHES(KAT_TRUE)       ||
+             K_CURR_MATCHES(KAT_FALSE)      ||
+             K_CURR_MATCHES(KAT_NULL)       ||
              K_CURR_MATCHES(KAT_OPAREN)       ) 
     {
-        //expr
         rv = knitx_expr(knit, prs);
         if (rv != KNIT_OK)
             return rv;
-        if (K_CURR_MATCHES(KAT_EQUALS)) {
+        if (K_CURR_MATCHES(KAT_ASSIGN)) {
             K_ADV_TOK_CRV();
             rv = knitx_assignment_stmt(knit, prs);
             struct knit_expr *assign = NULL;
             rv = knitx_save_expr(knit, prs, &assign); /*ml*/ KNIT_CRV(rv);
-            rv = knitx_emit_expr_eval(knit, prs, assign); /*ml*/ KNIT_CRV(rv);
+            rv = knitx_emit_expr_eval(knit, prs, assign, KEVAL_VALUE); /*ml*/ KNIT_CRV(rv);
         }
         else {
             struct knit_expr *root_expr = NULL;
             rv = knitx_save_expr(knit, prs, &root_expr); /*ml*/ KNIT_CRV(rv);
-            rv = knitx_emit_expr_eval(knit, prs,  root_expr);
+            rv = knitx_emit_expr_eval(knit, prs,  root_expr, KEVAL_VALUE);
             knitx_emit_pop(knit, prs, 1); //assumes only 1 result pushed
-            knitx_expr_destroy(knit, prs, root_expr);
+            //?knitx_expr_destroy(knit, prs, root_expr);
         }
+        if (!K_CURR_MATCHES(KAT_SEMICOLON)) {
+            return knit_error_expected(knit, prs, KAT_SEMICOLON, "");
+        }
+        K_ADV_TOK_CRV(); //skip ';'
+    }
+    else if (K_CURR_MATCHES(KAT_RETURN)) {
+        K_ADV_TOK_CRV();
+        rv = knitx_expr(knit, prs); KNIT_CRV(rv);
+        struct knit_expr *root_expr = NULL;
+        rv = knitx_save_expr(knit, prs, &root_expr); /*ml*/ KNIT_CRV(rv);
+        rv = knitx_emit_expr_eval(knit, prs,  root_expr, KEVAL_VALUE); KNIT_CRV(rv);
+        knitx_emit_ret(knit, prs, 1);
         if (!K_CURR_MATCHES(KAT_SEMICOLON)) {
             return knit_error_expected(knit, prs, KAT_SEMICOLON, "");
         }
@@ -2405,11 +2853,6 @@ static int knitx_prog(struct knit *knit, struct knit_prs *prs) {
 #undef K_LA_MATCHES
 #undef K_CURR_MATCHES
 /*END OF PARSING FUNCS*/
-static int knitx_eval(struct knit *knit, struct knit_expr *expr) {
-    return KNIT_OK;
-}
-
-
 
 /*raw indices (not relative to bsp)*/
 static int knitx_stack_assign_s(struct knit *knit, struct knit_stack *stack, int dest, int src) {
@@ -2487,6 +2930,38 @@ static int knitx_op_exec_binop(struct knit *knit, struct knit_stack *stack, int 
     knitx_stack_assign_o(knit, stack, stack->vals.len - 2, ktobj(r));
     stack->vals.len--; //pop1
     return KNIT_OK;
+}
+
+static inline int knitx_op_do_test_binop(struct knit *knit, struct knit_obj *a, struct knit_obj *b, int op) {
+    if (a->u.ktype == KNIT_INT && b->u.ktype == KNIT_INT) {
+        struct knit_int *ai = (struct knit_int *) a;
+        struct knit_int *bi = (struct knit_int *) b;
+        switch (op) {
+            case KTESTEQ:   knit->ex.last_cond = ai->value == bi->value; break;
+            case KTESTNEQ:  knit->ex.last_cond = ai->value != bi->value; break;
+            case KTESTGT:   knit->ex.last_cond = ai->value > bi->value; break;
+            case KTESTLT:   knit->ex.last_cond = ai->value < bi->value; break;
+            case KTESTGTEQ: knit->ex.last_cond = ai->value >= bi->value; break;
+            case KTESTLTEQ: knit->ex.last_cond = ai->value <= bi->value; break;
+            default:
+                knit_fatal("unsupported op for ints: %s", knit_insn_name(op));
+        }
+    }
+    else {
+        knit_fatal("knitx_op_add(): unsupported types for %s: %s and %s", knit_insn_name(op), knitx_obj_type_name(knit, a), knitx_obj_type_name(knit, b));
+    }
+    return KNIT_OK;
+}
+static int knitx_op_exec_test_binop(struct knit *knit, struct knit_stack *stack, int op) {
+    knit_assert_s(stack->vals.len >= 2, "");
+    struct knit_obj *a = stack->vals.data[stack->vals.len - 2];
+    struct knit_obj *b = stack->vals.data[stack->vals.len - 1];
+    int rv = knitx_op_do_test_binop(knit, a, b, op);
+    knitx_obj_decref(knit, a);
+    knitx_obj_decref(knit, b);
+    knitx_stack_assign_range_null(knit, stack, stack->vals.len - 1, stack->vals.len);
+    stack->vals.len -= 2; //pop2
+    return rv;
 }
 
 //pushes it to stack
@@ -2618,10 +3093,11 @@ static int knitx_exec(struct knit *knit) {
         }
         else if (op == KRET) {
             int nreturns = insn->op1;
-            int move_to = top_frm->bsp;
+            int move_to = top_frm->bsp - 1; //because that's where the function is
+            knit_assert_h(move_to >= 0, "expected the function to return from to be pushed on the stack");
             knit_assert_h((stack_vals->len - move_to) >= insn->op1, "returning too many values");
             rv = knitx_stack_moveup(knit, &knit->ex.stack, move_to, nreturns);
-            stack_vals->len = top_frm->bsp + nreturns; //pops all unneeded
+            stack_vals->len = top_frm->bsp - 1 + nreturns; //pops all unneeded
             stack->nresults = nreturns;
             rv = knitx_stack_pop_frame(knit, stack);
             if (rv != KNIT_OK)
@@ -2634,6 +3110,41 @@ static int knitx_exec(struct knit *knit) {
 
             knit_assert_h(top_frm->frame_type == KNIT_FRAME_KBLOCK, "");
             knit_assert_h(top_frm->bsp >= 0 && top_frm->bsp <= stack_vals->len, "");
+        }
+        else if (op == KJMP) {
+            top_frm->u.kf.ip = insn->op1 - 1; 
+        }
+        else if (op == KJMPTRUE) {
+            if (knit->ex.last_cond)
+                top_frm->u.kf.ip = insn->op1 - 1; 
+        }
+        else if (op == KJMPFALSE) {
+            if (!knit->ex.last_cond)
+                top_frm->u.kf.ip = insn->op1 - 1; 
+        }
+        else if (op == KTESTEQ || op == KTESTNEQ  || op == KTESTGT  ||
+                 op == KTESTLT || op == KTESTGTEQ || op == KTESTLTEQ  )
+        {
+            rv = knitx_op_exec_test_binop(knit, stack, op);
+        }
+        else if (op == KTESTNOT || op == KTEST ) {
+            knit_assert_h(knitx_stack_ntemp(knit, &knit->ex.stack) >= 1, "insufficent objects on the stack for KTEST/KTESTNOT");
+            struct knit_obj *obj = stack_vals->data[stack_vals->len - 1];
+            rv = knitx_test_bool(knit, obj);
+            if (op == KTESTNOT)
+                knit->ex.last_cond = !knit->ex.last_cond;
+            rv = knitx_stack_rpop(knit, stack, 1);
+        }
+        else if (op == KEMIT) {
+            switch (insn->op1) {
+                case KEMTRUE:  rv = knitx_stack_rpush(knit, stack, (struct knit_obj *) &ktrue);  break;
+                case KEMFALSE: rv = knitx_stack_rpush(knit, stack, (struct knit_obj *) &kfalse); break;
+                case KEMNULL:  rv = knitx_stack_rpush(knit, stack, (struct knit_obj *) &knull);  break;
+                default: knit_fatal("insn's op1 not expected: %s", knit_insn_name(op));
+            }
+        }
+        else if (op == KSAVETEST) {
+            rv = knitx_stack_rpush(knit, stack, (struct knit_obj *)(knit->ex.last_cond ? &ktrue : &kfalse));
         }
         else if (op == KADD || op == KSUB || op == KMUL || op == KDIV || op == KMOD) {
             rv = knitx_op_exec_binop(knit, stack, op);
@@ -2650,8 +3161,11 @@ static int knitx_exec(struct knit *knit) {
 done:
     return KNIT_OK;
 }
+
+
 static int knitx_block_exec(struct knit *knit, struct knit_block *block, int nargs) {
-    int rv = knitx_stack_push_frame_for_kcall(knit, block, nargs); KNIT_CRV(rv);
+    int rv = knitx_stack_rpush(knit, &knit->ex.stack, (struct knit_obj *)(&knull)); KNIT_CRV(rv);
+    rv = knitx_stack_push_frame_for_kcall(knit, block, nargs); KNIT_CRV(rv);
     rv = knitx_exec(knit); KNIT_CRV(rv);
     return KNIT_OK;
 }

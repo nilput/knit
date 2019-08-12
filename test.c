@@ -102,12 +102,104 @@ void t5(void) {
     knitx_deinit(&knit);
 }
 
+void t6(void) {
+    struct knit knit;
+    knitx_init(&knit, KNIT_POLICY_EXIT);
+    knitxr_register_stdlib(&knit);
+    knitx_exec_str(&knit, "g.booltest = function() {\n"
+                          "    g.print('2 == 2: ', 2 == 2);\n"
+                          "    g.print('2 != 2: ', 2 != 2);\n"
+                          "    g.print('2 == 3: ', 2 == 3);\n"
+                          "    g.print('2 != 3: ', 2 != 3);\n"
+                          "    g.print('2 >= 2: ', 2 >= 2);\n"
+                          "    g.print('2 > 2: ',  2 >  2);\n"
+                          "    g.print('2 < 2: ',  2 <  2);\n"
+                          "    g.print('2 <= 2: ', 2 <= 2);\n"
+                          "    g.print('2 > 3: ',  2 > 3);\n"
+                          "    g.print('2 >= 3: ',  2 >= 3);\n"
+                          "    g.print('2 < 3: ',  2 < 3);\n"
+                          "    g.print('2 <= 3: ',  2 <= 3);\n"
+                          "};\n"
+                          "g.booltest();\n");
+    knitx_globals_dump(&knit);
+    knitx_deinit(&knit);
+}
+void t7(void) {
+    struct knit knit;
+    knitx_init(&knit, KNIT_POLICY_EXIT);
+    knitxr_register_stdlib(&knit);
+                          
+    knitx_exec_str(&knit,
+                          "g.count = 0;\n"
+                          "g.cant = function() {\n"
+                          "    g.print('failed!, shouldnt be executed');\n"
+                          "    return true;\n"
+                          "};\n"
+                          "g.must = function() {\n"
+                          "    g.count = g.count + 1;\n"
+                          "    return true;\n"
+                          "};\n"
+                          "g.short = function() {\n"
+
+                          "    g.print('g.r = true   and g.must();');\n"
+                          "    g.r = true   and g.must();\n"
+                          "    g.print('g.r = ', g.r);\n"
+
+                          "    g.print('g.r = false  and g.cant();');\n"
+                          "    g.r = false  and g.cant();\n"
+                          "    g.print('g.r = ', g.r);\n"
+
+                          "    g.print('g.r = (false and g.cant()) or g.must();');\n"
+                          "    g.r = (false and g.cant()) or g.must();\n"
+                          "    g.print('g.r = ', g.r);\n"
+
+                          "    g.print('g.r = (false or g.must()) and g.must();');\n"
+                          "    g.r = (false or g.must()) and g.must();\n"
+                          "    g.print('g.r = ', g.r);\n"
+
+                          "    g.print('expect count to be 4: ', g.count);\n"
+                          "};\n"
+                          "g.short();\n");
+    knitx_globals_dump(&knit);
+    knitx_deinit(&knit);
+}
+
+void t8(void) {
+
+    struct knit knit;
+    knitx_init(&knit, KNIT_POLICY_EXIT);
+    knitxr_register_stdlib(&knit);
+                          
+    //a_global should be defined as a global because it is at file scope
+    knitx_exec_str(&knit,
+                          "a_global = 10;\n"
+                          "g.count = 0;\n"
+                          "g.func = function(an_arg) {"
+                          "  a_local = 20;"
+                          "  print('a_global: ', a_global);"
+                          "  print('a_local:  ', a_local);"
+                          "  print('an_arg:   ', an_arg);"
+                          "  print('count:    ', count);"
+                          "};"
+                          "g.print('expecting count to be 0');"
+                          "g.func(30);"
+                          "g.count = 3;"
+                          "g.print('expecting count to be 3');"
+                          "g.func(40);"
+                          );
+    knitx_globals_dump(&knit);
+    knitx_deinit(&knit);
+}
+
 void (*funcs[])(void) = {
     t1,
     t2,
     t3,
     t4,
     t5,
+    t6,
+    t7,
+    t8,
 };
 int main(int argc, char **argv) {
     void (*func)(void) = interactive;
@@ -118,7 +210,8 @@ int main(int argc, char **argv) {
         else {
             int c = atoi(argv[1]) - 1;
             int nfuncs = (sizeof funcs  / sizeof funcs[0]);
-            c = c < 0 ? 0 : (c >= nfuncs ? 0 : c);
+            if (c < 0 || c >= nfuncs)
+                idie("invalid test number specified");
             func = funcs[c];
         }
     }
