@@ -1,0 +1,14 @@
+a_global = 10;
+count = 0;
+func = function(an_arg) {
+  a_local = 20;
+  print('a_global: ', a_global);
+  print('a_local:  ', a_local);
+  print('an_arg:   ', an_arg);
+  print('count:    ', count);
+};
+print('expecting count to be 0');
+func(30);
+count = 3;
+print('expecting count to be 3');
+func(40);

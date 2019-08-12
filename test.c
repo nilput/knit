@@ -1,8 +1,28 @@
 #include "knit.h"
 
-void idie(char *msg) {
-    fprintf(stderr, "Error: %s\n", msg);
+static void idie(const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
+    va_end(ap);
     exit(1);
+}
+char *readordie(char *filename) {
+    FILE *f = fopen(filename, "r");
+    if (!f)
+        idie("failed to open '%s'\n", filename);
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    void *m = malloc(len + 1);
+    if (!m) 
+        idie("failed to allocate a buffer\n");
+    long read = fread(m, 1, len, f);
+    if (read != len)
+        idie("failed to read '%s', partially read %d/%d\n", filename, read, len);
+    ((char*)m)[len] = 0;
+    return m;
 }
 void interactive(void) {
     struct knit knit;
@@ -191,6 +211,18 @@ void t8(void) {
     knitx_deinit(&knit);
 }
 
+void t9(void) {
+    struct knit knit;
+    knitx_init(&knit, KNIT_POLICY_EXIT);
+    knitxr_register_stdlib(&knit);
+                          
+    char *buf = readordie("tests/t9.kn");
+    knitx_exec_str(&knit, buf);
+    free(buf);
+    knitx_globals_dump(&knit);
+    knitx_deinit(&knit);
+}
+
 void (*funcs[])(void) = {
     t1,
     t2,
@@ -200,6 +232,7 @@ void (*funcs[])(void) = {
     t6,
     t7,
     t8,
+    t9,
 };
 int main(int argc, char **argv) {
     void (*func)(void) = interactive;
