@@ -1,0 +1,5 @@
+sum = function (a,b,c,d) {
+    return a + b + c + d;
+};
+v = sum(1,1,1,1);
+print(v);

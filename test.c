@@ -211,16 +211,27 @@ void t8(void) {
     knitx_deinit(&knit);
 }
 
-void t9(void) {
+void generic_file_test(char *filename) {
     struct knit knit;
     knitx_init(&knit, KNIT_POLICY_EXIT);
     knitxr_register_stdlib(&knit);
-                          
-    char *buf = readordie("tests/t9.kn");
+    char *buf = readordie(filename);
     knitx_exec_str(&knit, buf);
     free(buf);
     knitx_globals_dump(&knit);
     knitx_deinit(&knit);
+}
+void t9(void) {
+    generic_file_test("tests/t9.kn");
+}
+void t10(void) {
+    generic_file_test("tests/t10.kn");
+}
+void t11(void) {
+    generic_file_test("tests/t11.kn");
+}
+void t12(void) {
+    generic_file_test("tests/t12.kn");
 }
 
 void (*funcs[])(void) = {
@@ -233,6 +244,9 @@ void (*funcs[])(void) = {
     t7,
     t8,
     t9,
+    t10,
+    t11,
+    t12,
 };
 int main(int argc, char **argv) {
     void (*func)(void) = interactive;

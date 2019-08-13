@@ -1,0 +1,6 @@
+sq = function(n) {
+    return n * n;
+};
+
+v = sq(9);
+print('v: ', v);
