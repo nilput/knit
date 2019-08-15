@@ -1,35 +1,35 @@
 
 .PHONY: all clean
-GEN :=        vars_hasht.h mem_hasht.h tok_darr.h insns_darr.h
-GEN := $(GEN) knit_objp_darr.h knit_frame_darr.h knit_expr_darr.h knit_varname_darr.h
+GEN :=        src/vars_hasht.h src/mem_hasht.h src/tok_darray.h src/insns_darray.h
+GEN := $(GEN) src/knit_objp_darray.h src/knit_frame_darray.h src/knit_expr_darray.h src/knit_varname_darray.h
 
 all: test $(GEN)
-HASHT_INC := -I hasht/src/
+HASHT_INC := -I hasht/src/ -I hasht/third_party/
 
-vars_hasht.h: hasht/src/hasht.h
+src/vars_hasht.h: hasht/src/hasht.h
 	./hasht/scripts/gen_hasht.sh vars_hasht $@
-mem_hasht.h: hasht/src/hasht.h
+src/mem_hasht.h: hasht/src/hasht.h
 	./hasht/scripts/gen_hasht.sh mem_hasht $@
-tok_darr.h: darr/src/darr.h
-	./darr/scripts/gen_darr.sh tok_darr 'struct knit_tok' $@
-insns_darr.h: darr/src/darr.h
-	./darr/scripts/gen_darr.sh insns_darr 'struct knit_insn' $@
-knit_objp_darr.h: darr/src/darr.h
-	./darr/scripts/gen_darr.sh knit_objp_darr 'struct knit_obj *' $@
-knit_frame_darr.h: darr/src/darr.h
-	./darr/scripts/gen_darr.sh knit_frame_darr 'struct knit_frame' $@
-knit_expr_darr.h: darr/src/darr.h
-	./darr/scripts/gen_darr.sh knit_expr_darr 'struct knit_expr *' $@
-knit_varname_darr.h: darr/src/darr.h
-	./darr/scripts/gen_darr.sh knit_varname_darr 'struct knit_varname' $@
+src/tok_darray.h: src/darray/src/darray.h
+	./src/darray/scripts/gen_darray.sh tok_darray 'struct knit_tok' $@
+src/insns_darray.h: src/darray/src/darray.h
+	./src/darray/scripts/gen_darray.sh insns_darray 'struct knit_insn' $@
+src/knit_objp_darray.h: src/darray/src/darray.h
+	./src/darray/scripts/gen_darray.sh knit_objp_darray 'struct knit_obj *' $@
+src/knit_frame_darray.h: src/darray/src/darray.h
+	./src/darray/scripts/gen_darray.sh knit_frame_darray 'struct knit_frame' $@
+src/knit_expr_darray.h: src/darray/src/darray.h
+	./src/darray/scripts/gen_darray.sh knit_expr_darray 'struct knit_expr *' $@
+src/knit_varname_darray.h: src/darray/src/darray.h
+	./src/darray/scripts/gen_darray.sh knit_varname_darray 'struct knit_varname' $@
 CFLAGS := -Wall -Wextra  -Wno-unused-function -Wno-unused-variable -Wno-unused-parameter
 debug: CFLAGS := $(CFLAGS) -g3 -O0
 debug: test
 opt: CFLAGS := $(CFLAGS) -O2
 opt: test
-test: test.c $(GEN) knit.h
+test: src/test.c $(GEN) src/knit.h
 	$(CC) $(CFLAGS) $(HASHT_INC) $< -o $@
-knit.h: kdata.h
+src/knit.h: src/kdata.h
 clean:
 	rm -f $(GEN) 2>/dev/null
 	rm -f test   2>/dev/null

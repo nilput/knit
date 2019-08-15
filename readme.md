@@ -8,6 +8,20 @@ it's supposed to look like:
             src
             scripts
             ...
-        test.c
+        src/
+            test.c
+            knit.h
+            ...
         Makefile
         ...
+
+`
+git clone https://github.com/knit
+cd knit
+git clone https://github.com/hasht
+make
+`
+then you can try 
+`
+./test -i
+`

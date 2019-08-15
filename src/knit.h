@@ -677,7 +677,7 @@ static int knitx_lexer_init(struct knit *knit, struct knit_lex *lxr) {
     lxr->colno = 1;
     lxr->offset = 0;
     lxr->tokno = 0;
-    int rv = tok_darr_init(&lxr->tokens, 100);
+    int rv = tok_darray_init(&lxr->tokens, 100);
     return rv;
 }
 static int knitx_lexer_deinit(struct knit *knit, struct knit_lex *lxr); //fwd
@@ -702,7 +702,7 @@ lexer_cleanup:
 static int knitx_lexer_deinit(struct knit *knit, struct knit_lex *lxr) {
     knitx_str_destroy(knit, lxr->input);
     lxr->input = NULL;
-    tok_darr_deinit(&lxr->tokens);
+    tok_darray_deinit(&lxr->tokens);
     return KNIT_OK;
 }
 
@@ -738,22 +738,22 @@ static int knitx_lexer_deinit(struct knit *knit, struct knit_lex *lxr) {
 
 
 static int knitx_block_init(struct knit *knit, struct knit_block *block) {
-    int rv = insns_darr_init(&block->insns, 256);
-    if (rv != INSNS_DARR_OK) {
+    int rv = insns_darray_init(&block->insns, 256);
+    if (rv != INSNS_DARRAY_OK) {
         return knit_error(knit, KNIT_RUNTIME_ERR, "knitx_block_init(): initializing statements darray failed");
     }
-    rv = knit_objp_darr_init(&block->constants, 128); KNIT_CRV_JMP(rv, fail_objp_darr);
+    rv = knit_objp_darray_init(&block->constants, 128); KNIT_CRV_JMP(rv, fail_objp_darray);
     block->nargs = 0;
     block->nlocals = 0;
     return KNIT_OK;
 
-fail_objp_darr:
-    insns_darr_deinit(&block->insns);
+fail_objp_darray:
+    insns_darray_deinit(&block->insns);
     return rv;
 }
 static int knitx_block_add_insn(struct knit *knit, struct knit_block *block, struct knit_insn *insn) {
-    int rv = insns_darr_push(&block->insns, insn);
-    if (rv != INSNS_DARR_OK) {
+    int rv = insns_darray_push(&block->insns, insn);
+    if (rv != INSNS_DARRAY_OK) {
         return knit_error(knit, KNIT_RUNTIME_ERR, "knitx_block_add_insn(): adding a insn to insns darray failed");
     }
     return KNIT_OK;
@@ -761,8 +761,8 @@ static int knitx_block_add_insn(struct knit *knit, struct knit_block *block, str
 
 //block owns allocd_obj, it is expected to be a tmallocd ptr (TODO check)
 static int knitx_block_add_constant(struct knit *knit, struct knit_block *block, struct knit_obj *allocd_obj, int *index_out) {
-    int rv = knit_objp_darr_push(&block->constants, &allocd_obj);
-    if (rv != KNIT_OBJP_DARR_OK) {
+    int rv = knit_objp_darray_push(&block->constants, &allocd_obj);
+    if (rv != KNIT_OBJP_DARRAY_OK) {
         *index_out = -1;
         return knit_error(knit, KNIT_RUNTIME_ERR, "knitx_block_add_constant(): adding a constant to darray failed");
     }
@@ -793,7 +793,7 @@ static int knitx_current_block_add_strl_constant(struct knit *knit, struct knit_
     return knitx_block_add_constant(knit, &prs->curblk->block, ktobj(str), index_out);
 }
 static int knitx_block_deinit(struct knit *knit, struct knit_block *block) {
-    insns_darr_deinit(&block->insns);
+    insns_darray_deinit(&block->insns);
     return KNIT_OK;
 }
 //never returns null
@@ -1010,21 +1010,21 @@ cleanup_tmpstr:
 }
 
 static int knitx_stack_init(struct knit *knit, struct knit_stack *stack) {
-    int rv = knit_frame_darr_init(&stack->frames, 128);
-    if (rv != KNIT_FRAME_DARR_OK) {
+    int rv = knit_frame_darray_init(&stack->frames, 128);
+    if (rv != KNIT_FRAME_DARRAY_OK) {
         return knit_error(knit, KNIT_RUNTIME_ERR, "knit_stack_init(): initializing frames stack failed");
     }
-    rv = knit_objp_darr_init(&stack->vals, 512);
-    if (rv != KNIT_OBJP_DARR_OK) {
-        knit_frame_darr_deinit(&stack->frames);
+    rv = knit_objp_darray_init(&stack->vals, 512);
+    if (rv != KNIT_OBJP_DARRAY_OK) {
+        knit_frame_darray_deinit(&stack->frames);
         return knit_error(knit, KNIT_RUNTIME_ERR, "knit_stack_init(): initializing values stack failed");
     }
     return KNIT_OK;
 }
 static int knitx_stack_deinit(struct knit *knit, struct knit_stack *stack) {
-    int rv1 = knit_objp_darr_deinit(&stack->vals);
-    int rv  = knit_frame_darr_deinit(&stack->frames);
-    if (rv1 != KNIT_OBJP_DARR_OK || rv != KNIT_FRAME_DARR_OK)
+    int rv1 = knit_objp_darray_deinit(&stack->vals);
+    int rv  = knit_frame_darray_deinit(&stack->frames);
+    if (rv1 != KNIT_OBJP_DARRAY_OK || rv != KNIT_FRAME_DARRAY_OK)
         return KNIT_DEINIT_ERR;
     return KNIT_OK;
 }
@@ -1124,8 +1124,8 @@ static int knitx_stack_reserve_values(struct knit *knit, struct knit_stack *stac
     knit_assert_h(nvalues >= 0, "");
     struct knit_obj *obj = NULL;
     for (int i=0; i<nvalues; i++) {
-        int rv = knit_objp_darr_push(&stack->vals, &obj);
-        if (rv != KNIT_OBJP_DARR_OK) {
+        int rv = knit_objp_darray_push(&stack->vals, &obj);
+        if (rv != KNIT_OBJP_DARRAY_OK) {
             return knit_error(knit, KNIT_RUNTIME_ERR, "knit_stack_value: pushing a stack value failed");
         }
     }
@@ -1143,8 +1143,8 @@ static int knitx_stack_push_frame_for_kcall(struct knit *knit, struct knit_block
         return rv;
     }
     struct knit_exec_state *exs = &knit->ex;
-    rv = knit_frame_darr_push(&exs->stack.frames, &frm);
-    if (rv != KNIT_FRAME_DARR_OK) {
+    rv = knit_frame_darray_push(&exs->stack.frames, &frm);
+    if (rv != KNIT_FRAME_DARRAY_OK) {
         knitx_frame_deinit(knit, &frm);
         return knit_error(knit, KNIT_RUNTIME_ERR, "knit_stack_push_frame_for_call(): pushing a stack frame failed");
     }
@@ -1160,8 +1160,8 @@ static int knitx_stack_push_frame_for_ccall(struct knit *knit, struct knit_cfunc
         return rv;
     }
     struct knit_exec_state *exs = &knit->ex;
-    rv = knit_frame_darr_push(&exs->stack.frames, &frm);
-    if (rv != KNIT_FRAME_DARR_OK) {
+    rv = knit_frame_darray_push(&exs->stack.frames, &frm);
+    if (rv != KNIT_FRAME_DARRAY_OK) {
         knitx_frame_deinit(knit, &frm);
         return knit_error(knit, KNIT_RUNTIME_ERR, "knit_stack_push_frame_for_call(): pushing a stack frame failed");
     }
@@ -1300,8 +1300,8 @@ static int knitx_lexer_add_tok(struct knit *knit,
     else {
         knit_assert_h(!data, "knitx_lexer_add_tok(): adding token with data argument that is unused");
     }
-    int rv = tok_darr_push(&lxr->tokens, &tok);
-    if (rv != TOK_DARR_OK) {
+    int rv = tok_darray_push(&lxr->tokens, &tok);
+    if (rv != TOK_DARRAY_OK) {
         return knit_error(knit, KNIT_RUNTIME_ERR, "couldn't push token to tokens buffer");
     }
     return KNIT_OK;
@@ -1728,7 +1728,7 @@ static int knit_cur_block_new(struct knit *knit, struct knit_curblk **curblkp) {
     memset(nblk, 0, sizeof(*nblk));
     nblk->parent = NULL;
     rv = knitx_block_init(knit, &nblk->block);     KNIT_CRV(rv);
-    rv = knit_varname_darr_init(&nblk->locals, 8); KNIT_CRV(rv);
+    rv = knit_varname_darray_init(&nblk->locals, 8); KNIT_CRV(rv);
     *curblkp = nblk;;
     return KNIT_OK;
 }
@@ -1740,7 +1740,7 @@ static int knit_cur_block_destroy(struct knit *knit, struct knit_curblk *curblk)
     for (int i=0; i<curblk->locals.len; i++) {
         knitx_str_deinit(knit, &curblk->locals.data[i].name);
     }
-    knit_varname_darr_deinit(&curblk->locals);
+    knit_varname_darray_deinit(&curblk->locals);
     knitx_tfree(knit, curblk);
     return KNIT_OK;
 }
@@ -2145,8 +2145,8 @@ static int knitx_add_block_var(struct knit *knit, struct knit_curblk *curblk, st
         vn.idx = curblk->block.nargs;
         curblk->block.nargs++;
     }
-    rv = knit_varname_darr_push(&curblk->locals, &vn);
-    if (rv != KNIT_VARNAME_DARR_OK) {
+    rv = knit_varname_darray_push(&curblk->locals, &vn);
+    if (rv != KNIT_VARNAME_DARRAY_OK) {
         knitx_str_deinit(knit, &vn.name);
         return knit_error(knit, KNIT_RUNTIME_ERR, "couldn't push local variable to varname array");
     }
@@ -2158,7 +2158,7 @@ static int knitx_expr(struct knit *knit, struct knit_prs *prs);//fwd
 static int kexpr_expr(struct knit *knit, struct knit_prs *prs, int min_prec); //fwd
 
 //darray is assumed to be initialized and empty
-static int kexpr_func_call_arglist(struct knit *knit, struct knit_prs *prs, struct knit_expr_darr *darray) {
+static int kexpr_func_call_arglist(struct knit *knit, struct knit_prs *prs, struct knit_expr_darray *darray) {
     knit_assert_s( K_CURR_MATCHES(KAT_OPAREN) , "");
     int rv;
     K_ADV_TOK_CRV();
@@ -2170,8 +2170,8 @@ static int kexpr_func_call_arglist(struct knit *knit, struct knit_prs *prs, stru
         rv = knitx_expr(knit, prs); /*ml*/ KNIT_CRV(rv);
         struct knit_expr *arg_expr = NULL;
         rv = knitx_save_expr(knit, prs, &arg_expr); /*ml*/ KNIT_CRV(rv);
-        rv = knit_expr_darr_push(darray, &arg_expr);
-        if (rv != KNIT_EXPR_DARR_OK) {
+        rv = knit_expr_darray_push(darray, &arg_expr);
+        if (rv != KNIT_EXPR_DARRAY_OK) {
             return knit_error(knit, KNIT_RUNTIME_ERR, "couldn't push to arg expressions dynamic array"); /*ml*/
         }
         if (!K_CURR_MATCHES(KAT_COMMA))
@@ -2186,7 +2186,7 @@ static int kexpr_func_call_arglist(struct knit *knit, struct knit_prs *prs, stru
 }
 static int knitx_expr_destroy(struct knit *knit, struct knit_prs *prs, struct knit_expr *prs_expr);
 
-static int kexpr_func_call_arglist_deinit(struct knit *knit, struct knit_prs *prs, struct knit_expr_darr *darray) {
+static int kexpr_func_call_arglist_deinit(struct knit *knit, struct knit_prs *prs, struct knit_expr_darray *darray) {
     for (int i=0; i<darray->len; i++) {
         struct knit_expr *arg_expr = darray->data[i];
         knitx_expr_destroy(knit, prs, arg_expr);
@@ -2281,7 +2281,7 @@ static int kexpr_funcdef(struct knit *knit, struct knit_prs *prs) {
 #endif
 
     /*this destroys everything in curblock except .block itsel, (but what if we need debug info?, it should be optionally saved somewhere)f*/
-    knit_varname_darr_deinit(&curblk->locals);
+    knit_varname_darray_deinit(&curblk->locals);
     knitx_tfree(knit, curblk);
 
     prs->curblk->expr.exptype = KAX_FUNCTION;
@@ -2324,9 +2324,9 @@ static int kexpr_prefix(struct knit *knit, struct knit_prs *prs) {
             //function call
             struct knit_expr *rootexpr =  NULL;
             rv = knitx_save_expr(knit, prs, &rootexpr); /*ml*/ KNIT_CRV(rv);
-            struct knit_expr_darr arglist;
-            rv = knit_expr_darr_init(&arglist, 0); 
-            if (rv != KNIT_EXPR_DARR_OK) {
+            struct knit_expr_darray arglist;
+            rv = knit_expr_darray_init(&arglist, 0); 
+            if (rv != KNIT_EXPR_DARRAY_OK) {
                 return knit_error(knit, KNIT_RUNTIME_ERR, "couldn't initialize arg expressions dynamic array"); /*ml*/
             }
             rv = kexpr_func_call_arglist(knit, prs, &arglist); /*ml*/ KNIT_CRV(rv);
@@ -3251,8 +3251,8 @@ static inline void kstepi() { return; }
 
 static int knitx_exec(struct knit *knit) {
     struct knit_stack *stack = &knit->ex.stack;
-    struct knit_frame_darr *frames = &knit->ex.stack.frames;
-    struct knit_objp_darr *stack_vals = &knit->ex.stack.vals;
+    struct knit_frame_darray *frames = &knit->ex.stack.frames;
+    struct knit_objp_darray *stack_vals = &knit->ex.stack.vals;
 
     knit_assert_h(frames->len > 0, "");
     struct knit_frame *top_frm = &frames->data[frames->len-1];
