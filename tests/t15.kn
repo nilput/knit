@@ -1,0 +1,13 @@
+fn = function(beg, end) {
+    i = beg;
+    while (i < end) {
+        print(i);
+        i = i + 1;
+    }
+};
+print('calling fn(0, 0): expecting nothing to be printed');
+fn(0, 0);
+print('calling fn(0, 5): expecting counting from 0 to 4');
+fn(0, 4);
+print('calling fn(3, 7): expecting counting from 3 to 6');
+fn(3, 7);

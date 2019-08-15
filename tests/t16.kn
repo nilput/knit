@@ -1,0 +1,12 @@
+fn = function(a, b, c, d) {
+    F = a;
+    L = d;
+    print('F: ', F);
+    print('L: ', L);
+    print('a: ', a);
+    print('b: ', b);
+    print('c: ', c);
+    print('d: ', d);
+};
+print('calling fn("a", "b", "c", "d"): expected F:"a", L:"d",  a:"a", b: "b", c: "c", d: "d"');
+fn('a', 'b', 'c', 'd');

@@ -1,5 +1,11 @@
 #define KNIT_OBJ_HEAD \
     int ktype
+/*
+* valid states:
+*   .len > 0 :   memory is owned by the object
+*   .len == -1 : memory is read only, and not owned by the object
+*   in both cases .len and .str are valid, .str points to the empty string if the string is just initialized
+*/
 struct knit_str {
     KNIT_OBJ_HEAD;
     char *str; //null terminated
@@ -35,6 +41,7 @@ struct knit_insn {
 struct knit_block { 
     //this can't contain self references, there is code that assumes it is memcopyable
     int nlocals;
+    int nargs;
     struct insns_darr insns;
     struct knit_objp_darr constants;
 };
@@ -74,6 +81,7 @@ enum KNIT_RV {
     KNIT_RUNTIME_ERR,
     KNIT_DEINIT_ERR,
     KNIT_OUT_OF_RANGE_ERR,
+    KNIT_NARGS,
     KNIT_NOT_FOUND = -1,
     KNIT_DUPLICATE_KEY = -1,
     //informational internal rvs (not errors)
@@ -199,11 +207,16 @@ enum KATOK {
     KAT_EOF,
     KAT_BOF, //begining of file
 
-    KAT_FUNCTION, //'function' keyword
-    KAT_RETURN, //'return' keyword
-    KAT_NULL,  //'null'  keyword
-    KAT_TRUE,  //'true'  keyword
-    KAT_FALSE, //'false' keyword
+    //Keywords
+    KAT_FUNCTION, 
+    KAT_RETURN, 
+    KAT_NULL,  
+    KAT_TRUE,  
+    KAT_FALSE, 
+    KAT_IF,    
+    KAT_ELSE,  
+    KAT_FOR,   
+    KAT_WHILE, 
 
     KAT_LAND, //'and' keyword
     KAT_LOR,  //'or'  keyword
@@ -256,8 +269,8 @@ enum KAEXPR {
     KAX_VAR_REF,
     KAX_OBJ_DOT,
     KAX_BIN_OP,
-    KAX_LOGICAL_BINOP,
     KAX_UN_OP,
+    KAX_LOGICAL_BINOP,
 };
 
 struct knit_exp; //fwd
@@ -278,7 +291,6 @@ struct knit_patch_list {
 struct knit_expr {
     int exptype;
     union {
-
         struct knit_str *str;
 
         struct knit_list *list;
@@ -317,6 +329,13 @@ struct knit_expr {
             struct knit_expr *parent;
             struct knit_varname_chain *chain;
         } prefix;
+        struct knit_index { 
+            struct knit_expr *list;
+            struct knit_expr *index; /*the left most item of child must be a Name*/
+        } index;
+        struct knit_call call;
+        struct knit_kfunc *kfunc;
+
             /*
                example 1:
                a . b . c
@@ -361,12 +380,6 @@ struct knit_expr {
                 }
                 */
               
-        struct knit_index { 
-            struct knit_expr *list;
-            struct knit_expr *index; /*the left most item of child must be a Name*/
-        } index;
-        struct knit_call call;
-        struct knit_kfunc *kfunc;
 
         /*
         KAX_CALL: call
@@ -374,13 +387,17 @@ struct knit_expr {
         KAX_LITERAL_STR: str
         KAX_LITERAL_INT: integer
         KAX_LITERAL_LIST: list
+        KAX_LITERAL_TRUE: nothing
+        KAX_LITERAL_FALSE: nothing
+        KAX_LITERAL_NULL:  nothing
         KAX_FUNCTION: kfunc
-        KAX_VAR_REF: varref
         KAX_LIST_INDEX: index
         KAX_LIST_SLICE: slice
+        KAX_VAR_REF: varref
         KAX_OBJ_DOT: prefix
         KAX_BIN_OP: bin
         KAX_UN_OP: un
+        KAX_LOGICAL_BINOP,
         */
 
     } u;

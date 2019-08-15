@@ -1,0 +1,16 @@
+fn = function(num) {
+    if (num == 1) {
+        print('num is one!');
+    }
+    else {
+        print('num is not one, num: ', num);
+    }
+};
+print('calling fn(0): expecting num is not one, num: 0');
+fn(0);
+print('calling fn(1): expecting num is one!');
+fn(1);
+print('calling fn(2): expecting num is not one, num: 2');
+fn(2);
+print('calling fn(3): expecting num is not one, num: 3');
+fn(3);

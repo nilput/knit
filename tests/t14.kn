@@ -1,0 +1,57 @@
+fn = function(num) {
+    if (num == 1) {
+        print('num is one!');
+    }
+    else if (num == 2) {
+        print('num is two!');
+    }
+    else if (num == 3) {
+        print('num is three!');
+    }
+    else if (num == 4) {
+        print('num is four!');
+    }
+    else if (num == 5) {
+        print('num is five!');
+    }
+    else if (num == 6) {
+        print('num is six!');
+    }
+    else if (num == 7) {
+        print('num is seven!');
+    }
+    else if (num == 8) {
+        print('num is eight!');
+    }
+    else if (num == 9) {
+        print('num is nine!');
+    }
+    else if (num == 10) {
+        print('num is ten!');
+    }
+    else {
+        if (num < 1) {
+            print('num is small!');
+        }
+        else {
+            print('num is big!');
+        }
+    }
+
+    if (num % 2 == 0) {
+        print('num is even!');
+    }
+    else {
+        print('num is odd!');
+    }
+};
+print('calling fn(0): expecting num is small, even');
+fn(0);
+print('calling fn(1): expecting num is one, odd');
+fn(1);
+print('calling fn(2): expecting num is two, even');
+fn(2);
+fn(3);
+fn(9);
+fn(11);
+fn(12);
