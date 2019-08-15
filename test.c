@@ -43,6 +43,7 @@ void interactive(void) {
             idie("input buffer full");
         //accumulate into buffer, while trying to be smart about language constructs
         char *d = buf + at;
+        printf("#> ");
         char *ln = fgets(d, canread, stdin);
         if (!ln)
             break;
@@ -277,6 +278,10 @@ int main(int argc, char **argv) {
                 idie("invalid test number specified");
             func = funcs[c];
         }
+    }
+    if (func == interactive) {
+        printf("Knit Interactive mode\n"
+               "you can also execute: %s [test num] to run tests\n", argv[0]);
     }
     func();
 }

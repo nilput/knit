@@ -2276,8 +2276,8 @@ static int kexpr_funcdef(struct knit *knit, struct knit_prs *prs) {
 
 
 #ifdef KNIT_DEBUG_PRINT
-    knitx_block_dump(knit, &kfunc->block);
     knitx_curblock_dump(knit, curblk);
+    knitx_block_dump(knit, &kfunc->block);
 #endif
 
     /*this destroys everything in curblock except .block itsel, (but what if we need debug info?, it should be optionally saved somewhere)f*/
