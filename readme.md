@@ -1,8 +1,8 @@
 Currently this is a work in progress, it's nowhere near completion
 
-The directory structure assumes there is a copy of hasht
-get it from github.com/nilput/hasht
-it's supposed to look like:
+The project depends on my other project hasht.
+the directory structure is supposed to look like:
+
     knit->
         hasht/
             src
@@ -15,12 +15,12 @@ it's supposed to look like:
         Makefile
         ...
 
-`
-git clone https://github.com/knit
+```
+git clone https://github.com/nilput/knit
 cd knit
-git clone https://github.com/hasht
+git clone https://github.com/nilput/hasht
 make
-`
+```
 then you can try 
 `
 ./test -i
