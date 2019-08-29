@@ -1,0 +1,11 @@
+prime_list = [2, 3, 5, 7, 11, 13, 17, 19];
+
+print_primes = function() {
+    i = 0;
+    while (i < 8) {
+        print("Prime ", i, ": ", prime_list[i]);
+        i = i + 1;
+    }
+};
+
+print_primes();

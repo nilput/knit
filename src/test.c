@@ -246,6 +246,9 @@ void t15(void) {
 void t16(void) {
     generic_file_test("tests/t16.kn");
 }
+void t17(void) {
+    generic_file_test("tests/t17.kn");
+}
 
 void (*funcs[])(void) = {
     t1,
@@ -264,6 +267,7 @@ void (*funcs[])(void) = {
     t14,
     t15,
     t16,
+    t17,
 };
 int main(int argc, char **argv) {
     void (*func)(void) = interactive;
