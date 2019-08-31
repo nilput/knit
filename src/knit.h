@@ -10,7 +10,10 @@
 
 //enable checks that are only there for testing
 #define KNIT_CHECKS
-#define KNIT_DEBUG_PRINT
+
+//#define KNIT_DEBUG_PRINT for debug output (lexer tokens, code, etc..)
+
+static int KNIT_DBG_PRINT = 0;
 
 //these are the only instances of these special types
 static const struct knit_bvalue ktrue  = { KNIT_TRUE };
@@ -1493,7 +1496,7 @@ again:
                         lxr->offset += 2;
                     }
                     else {
-                        rv = knitx_lexer_add_tok(knit, lxr, KAT_OP_NOT, lxr->offset, 1, lxr->lineno, lxr->colno, NULL);
+                        rv = knitx_lexer_add_tok(knit, lxr, KAT_OPU_NOT, lxr->offset, 1, lxr->lineno, lxr->colno, NULL);
                         lxr->offset += 1;
                     }
                     break;
@@ -1689,13 +1692,15 @@ static const char *knit_knit_tok_name(int name) {
         {KAT_CBRACKET, "KAT_CBRACKET"},
         {KAT_OCURLY, "KAT_OCURLY"},
         {KAT_CCURLY, "KAT_CCURLY"},
-        {KAT_OP_NOT,    "KAT_OP_NOT"},
         {KAT_OP_EQ,     "KAT_OP_EQ"},
         {KAT_OP_NEQ,    "KAT_OP_NEQ"},
         {KAT_OP_GT,     "KAT_OP_GT"},
         {KAT_OP_LT,     "KAT_OP_LT"},
         {KAT_OP_GTEQ,   "KAT_OP_GTEQ"},
         {KAT_OP_LTEQ,   "KAT_OP_LTEQ"},
+
+        {KAT_OPU_NOT,     "KAT_OPU_NOT"},
+
         {KAT_COMMA, "KAT_COMMA"},
         {KAT_COLON, "KAT_COLON"},
         {KAT_SEMICOLON, "KAT_SEMICOLON"},
@@ -2336,8 +2341,10 @@ static int kexpr_funcdef(struct knit *knit, struct knit_prs *prs) {
 
 
 #ifdef KNIT_DEBUG_PRINT
-    knitx_curblock_dump(knit, curblk);
-    knitx_block_dump(knit, &kfunc->block);
+    if (KNIT_DBG_PRINT) {
+        knitx_curblock_dump(knit, curblk);
+        knitx_block_dump(knit, &kfunc->block);
+    }
 #endif
 
     /*this destroys everything in curblock except .block itsel, (but what if we need debug info?, it should be optionally saved somewhere)f*/
@@ -2418,10 +2425,20 @@ static int kexpr_prefix(struct knit *knit, struct knit_prs *prs) {
     return KNIT_OK;
 }
 
-static int kexpr_atom(struct knit *knit, struct knit_prs *prs, int min_prec) {
+static int kexpr_atom(struct knit *knit, struct knit_prs *prs) {
     int rv = KNIT_OK;
     struct knit_expr *prs_expr =  &prs->curblk->expr;
-    if (K_CURR_MATCHES(KAT_FUNCTION)) {
+    if (K_CURR_MATCHES(KAT_OPU_NOT) || K_CURR_MATCHES(KAT_ADD) || K_CURR_MATCHES(KAT_SUB)) {
+        int op = knitx_lexer_curtoktype(knit, prs);
+        struct knit_expr *operand =  NULL;
+        K_ADV_TOK_CRV(); //skip unary op
+        rv = kexpr_atom(knit, prs); KNIT_CRV(rv);
+        rv = knitx_save_expr(knit, prs, &operand);  KNIT_CRV(rv);
+        prs_expr->exptype = KAX_UN_OP;
+        prs_expr->u.un.op = op;
+        prs_expr->u.un.operand = operand;
+    }
+    else if (K_CURR_MATCHES(KAT_FUNCTION)) {
         rv = kexpr_funcdef(knit, prs);
     }
     else if (K_CURR_MATCHES(KAT_INTLITERAL)) {
@@ -2753,6 +2770,19 @@ static int knitx_emit_expr_eval(struct knit *knit, struct knit_prs *prs, struct 
             knit_assert_h(nexpected == 1, "");
         }
     }
+    else if (expr->exptype == KAX_UN_OP) {
+        rv = knitx_emit_expr_eval(knit, prs, expr->u.un.operand, KEVAL_VALUE, 1);
+        int insn_op = 0;
+        switch (expr->u.un.op) {
+            case KAT_SUB: insn_op = KNEG; break;
+            case KAT_ADD: insn_op = KNOP; break;
+            case KAT_OPU_NOT: insn_op = KNOT; break;
+            default: knit_fatal_parse(prs, "unexpected unary operand"); break;
+        }
+        if (insn_op != KNOP) {
+            rv = knitx_emit_1(knit, prs, insn_op);  KNIT_CRV(rv);
+        }
+    }
     else if (expr->exptype == KAX_BIN_OP) {
         rv = knitx_emit_expr_eval(knit, prs, expr->u.bin.lhs, KEVAL_VALUE, 1);  KNIT_CRV(rv);
         rv = knitx_emit_expr_eval(knit, prs, expr->u.bin.rhs, KEVAL_VALUE, 1);  KNIT_CRV(rv);
@@ -2936,7 +2966,6 @@ static int kexpr_binoperation(struct knit *knit, struct knit_prs *prs, int op_to
             case KAT_OP_LT:   insn_type = KTESTLT;    break;
             case KAT_OP_GTEQ: insn_type = KTESTGTEQ;  break;
             case KAT_OP_LTEQ: insn_type = KTESTLTEQ;  break;
-            case KAT_OP_NOT:  insn_type = KTESTNOT;   break;
             default: {
                 knit_assert_h(0, "invalid op type");
             } break;
@@ -2951,7 +2980,7 @@ static int kexpr_binoperation(struct knit *knit, struct knit_prs *prs, int op_to
 }
 static int kexpr_expr(struct knit *knit, struct knit_prs *prs, int min_prec) {
     //https://eli.thegreenplace.net/2012/08/02/parsing-expressions-by-precedence-climbing
-    int rv = kexpr_atom(knit, prs, min_prec);   KNIT_CRV(rv);
+    int rv = kexpr_atom(knit, prs);   KNIT_CRV(rv);
 
     struct knit_tok *curtok = knitx_lexer_curtok(knit, prs);
     if (!curtok) {
@@ -3009,11 +3038,14 @@ static int knitx_curtok_in_first_of_expr(struct knit *knit, struct knit_prs *prs
            K_CURR_MATCHES(KAT_VAR)        ||
            K_CURR_MATCHES(KAT_OBRACKET)   ||
            K_CURR_MATCHES(KAT_FUNCTION)   ||
-           K_CURR_MATCHES(KAT_OP_NOT)     ||
            K_CURR_MATCHES(KAT_TRUE)       ||
            K_CURR_MATCHES(KAT_FALSE)      ||
            K_CURR_MATCHES(KAT_NULL)       ||
-           K_CURR_MATCHES(KAT_OPAREN);
+           K_CURR_MATCHES(KAT_OPAREN)     ||
+           K_CURR_MATCHES(KAT_OPU_NOT)    ||
+           K_CURR_MATCHES(KAT_ADD)    ||
+           K_CURR_MATCHES(KAT_SUB);
+    /*KAT_ADD '+' and KAT_SUB '-' can either be unary or binary*/
 }
 static int knitx_if_stmt(struct knit *knit, struct knit_prs *prs) {
     int rv = KNIT_OK;
@@ -3591,6 +3623,28 @@ static int knitx_exec(struct knit *knit) {
         else if (op == KSAVETEST) {
             rv = knitx_stack_rpush(knit, stack, (struct knit_obj *)(knit->ex.last_cond ? &ktrue : &kfalse));
         }
+        else if (op == KNEG) {
+            struct knit_obj *obj = stack_vals->data[stack_vals->len - 1];
+            if (obj->u.ktype != KNIT_INT) {
+                return knit_error(knit, KNIT_INVALID_TYPE_ERR, "trying to negatie a type other than an int");
+            }
+            struct knit_int *iobj = (struct knit_int *)obj;
+            int val = - iobj->value;
+            struct knit_int *ri = NULL;
+            rv = knitx_int_new(knit, &ri, val);
+            rv = knitx_stack_rpop(knit, stack, 1); //we can't mutate directly, because something else might be referring to it
+            rv = knitx_stack_rpush(knit, stack, (struct knit_obj *)ri);
+        }
+        else if (op == KNOT) {
+            struct knit_obj *obj = stack_vals->data[stack_vals->len - 1];
+            rv = knitx_test_bool(knit, obj); KNIT_CRV(rv);
+            int boolean = !knit->ex.last_cond;
+            rv = knitx_stack_rpop(knit, stack, 1);
+            rv = knitx_stack_rpush(knit, stack, (struct knit_obj *)(boolean ? &ktrue : &kfalse));
+        }
+        else if (op == KNOP) {
+            //no operation
+        }
         else if (op == KADD || op == KSUB || op == KMUL || op == KDIV || op == KMOD) {
             rv = knitx_op_exec_binop(knit, stack, op);
         }
@@ -3620,11 +3674,13 @@ static int knitx_exec_str(struct knit *knit, const char *program) {
     int rv = KNIT_OK;
 
 #ifdef KNIT_DEBUG_PRINT
-    knitx_prs_init1(knit, &prs);
-    knitx_lexer_init_str(knit, &prs.lex, program);
-    knitx_lexdump(knit, &prs.lex);
-    knitx_lexer_deinit(knit, &prs.lex);
-    knitx_prs_deinit(knit, &prs);
+    if (KNIT_DBG_PRINT) {
+        knitx_prs_init1(knit, &prs);
+        knitx_lexer_init_str(knit, &prs.lex, program);
+        knitx_lexdump(knit, &prs.lex);
+        knitx_lexer_deinit(knit, &prs.lex);
+        knitx_prs_deinit(knit, &prs);
+    }
 #endif 
 
     knitx_prs_init1(knit, &prs);
@@ -3632,13 +3688,17 @@ static int knitx_exec_str(struct knit *knit, const char *program) {
     knitx_prog(knit, &prs);
 
 #ifdef KNIT_DEBUG_PRINT
-    knitx_block_dump(knit, &prs.curblk->block);
+    if (KNIT_DBG_PRINT) {
+        knitx_block_dump(knit, &prs.curblk->block);
+    }
 #endif
 
     knitx_block_exec(knit, &prs.curblk->block, 0, 0);
 
 #ifdef KNIT_DEBUG_PRINT
-    knitx_stack_dump(knit, &knit->ex.stack, -1, -1);
+    if (KNIT_DBG_PRINT) {
+        knitx_stack_dump(knit, &knit->ex.stack, -1, -1);
+    }
 #endif
 
     knitx_lexer_deinit(knit, &prs.lex);

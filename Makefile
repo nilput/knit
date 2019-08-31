@@ -23,7 +23,7 @@ src/knit_expr_darray.h: src/darray/src/darray.h
 src/knit_varname_darray.h: src/darray/src/darray.h
 	./src/darray/scripts/gen_darray.sh knit_varname_darray 'struct knit_varname' $@
 CFLAGS := -Wall -Wextra  -Wno-unused-function -Wno-unused-variable -Wno-unused-parameter
-debug: CFLAGS := $(CFLAGS) -g3 -O0
+debug: CFLAGS := $(CFLAGS) -g3 -O0 -D KNIT_DEBUG_PRINT
 debug: test
 opt: CFLAGS := $(CFLAGS) -O2
 opt: test

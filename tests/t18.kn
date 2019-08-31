@@ -1,0 +1,8 @@
+num = 42;
+print('should be false: ', !num);
+print('should be true: ', !!num);
+print('should be false: ', !true and true);
+print('should be true: ', !true or true);
+print('should be false: ', !(!true or true));
+print('should be 3: ', 8 + -5);
+print('should be -13: ', -8 + -5);

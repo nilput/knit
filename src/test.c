@@ -1,5 +1,32 @@
 #include "knit.h"
 
+#if defined(__linux__) || defined(__apple__)
+    #include <unistd.h>
+    #define KNIT_HAVE_ISATTY
+#endif
+
+static struct knopts {
+    int verbose;
+    int testno;
+    int interactive;
+} knopts = {0};
+static void parse_argv(char *argv[], int argc) {
+    for (int i=1; i<argc; i++) {
+        if (strcmp(argv[i], "-v")==0) {
+            knopts.verbose = 1;
+        }
+        else if (strcmp(argv[i], "-i")==0) {
+            knopts.interactive = 1;
+        }
+        else if (argv[i][0] >= '0' && argv[i][0] <= '9') {
+            knopts.testno = atoi(argv[i]);
+        }
+        else {
+            fprintf(stderr, "unknown arg: '%s'\n", argv[i]);
+        }
+    }
+}
+
 static void idie(const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
@@ -24,10 +51,13 @@ char *readordie(char *filename) {
     ((char*)m)[len] = 0;
     return m;
 }
+
 void interactive(void) {
     struct knit knit;
     knitx_init(&knit, KNIT_POLICY_EXIT);
     knitxr_register_stdlib(&knit);
+
+
 #define BBUFLEN 4096
     char buf[BBUFLEN] = {0};
     enum foci {
@@ -37,13 +67,27 @@ void interactive(void) {
     };
     int focus[3] = {0, 0, 0};
     int at = 0;
+
+#ifdef KNIT_HAVE_ISATTY
+    int istty = isatty(0);
+#else
+    int istty = 1;
+#endif
+
+    if (istty) {
+        printf("Knit Interactive mode\n"
+                "you can also execute: ./prog [test num] to run tests\n");
+    }
+
     while (1) {
         int canread = BBUFLEN - at;
         if (canread <= 1)
             idie("input buffer full");
         //accumulate into buffer, while trying to be smart about language constructs
         char *d = buf + at;
-        printf("#> ");
+        if (istty) {
+            printf("#> ");
+        }
         char *ln = fgets(d, canread, stdin);
         if (!ln)
             break;
@@ -70,7 +114,12 @@ void interactive(void) {
         }
     }
 #undef BBUFLEN 
-    knitx_globals_dump(&knit);
+
+#ifdef KNIT_DEBUG_PRINT
+    if (KNIT_DBG_PRINT) {
+        knitx_globals_dump(&knit);
+    }
+#endif
     knitx_deinit(&knit);
 }
 void t1(void) {
@@ -80,7 +129,11 @@ void t1(void) {
     knitx_exec_str(&knit, "g.print('hello world!', 1, 2, 3);"
                           "g.foo = 'test';"
                           "g.print(g.foo);");
-    knitx_globals_dump(&knit);
+#ifdef KNIT_DEBUG_PRINT
+    if (KNIT_DBG_PRINT) {
+        knitx_globals_dump(&knit);
+    }
+#endif
     knitx_deinit(&knit);
 }
 void t2(void) {
@@ -91,7 +144,11 @@ void t2(void) {
     struct knit_str *str;
     int rv = knitx_get_str(&knit, "name", &str);
     knit_assert_h(rv == KNIT_OK, "get_str() failed");
-    knitx_globals_dump(&knit);
+#ifdef KNIT_DEBUG_PRINT
+    if (KNIT_DBG_PRINT) {
+        knitx_globals_dump(&knit);
+    }
+#endif
     printf("%s : %s\n", "name", str->str);
     knitx_deinit(&knit);
 }
@@ -219,7 +276,11 @@ void generic_file_test(char *filename) {
     char *buf = readordie(filename);
     knitx_exec_str(&knit, buf);
     free(buf);
-    knitx_globals_dump(&knit);
+#ifdef KNIT_DEBUG_PRINT
+    if (KNIT_DBG_PRINT) {
+        knitx_globals_dump(&knit);
+    }
+#endif
     knitx_deinit(&knit);
 }
 void t9(void) {
@@ -249,6 +310,9 @@ void t16(void) {
 void t17(void) {
     generic_file_test("tests/t17.kn");
 }
+void t18(void) {
+    generic_file_test("tests/t18.kn");
+}
 
 void (*funcs[])(void) = {
     t1,
@@ -268,24 +332,22 @@ void (*funcs[])(void) = {
     t15,
     t16,
     t17,
+    t18,
 };
 int main(int argc, char **argv) {
     void (*func)(void) = interactive;
-    if (argc > 1) {
-        if (argv[1][0] == '-' && argv[1][1] == 'i') {
-            func = interactive;
-        }
-        else {
-            int c = atoi(argv[1]) - 1;
-            int nfuncs = (sizeof funcs  / sizeof funcs[0]);
-            if (c < 0 || c >= nfuncs)
-                idie("invalid test number specified");
-            func = funcs[c];
-        }
+    parse_argv(argv, argc);
+    if (knopts.verbose)
+        KNIT_DBG_PRINT = 1;
+    if (knopts.testno == 0 || knopts.interactive) {
+        func = interactive;
     }
-    if (func == interactive) {
-        printf("Knit Interactive mode\n"
-               "you can also execute: %s [test num] to run tests\n", argv[0]);
+    else {
+        int c = knopts.testno - 1;
+        int nfuncs = (sizeof funcs  / sizeof funcs[0]);
+        if (c < 0 || c >= nfuncs)
+            idie("invalid test number specified");
+        func = funcs[c];
     }
     func();
 }

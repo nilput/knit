@@ -235,13 +235,15 @@ enum KATOK {
     KAT_OCURLY,   // '{'
     KAT_CCURLY,   // '}'
 
-    KAT_OP_NOT,    // '!'
     KAT_OP_EQ,     // '=='
     KAT_OP_NEQ,    // '!='
     KAT_OP_GT,     // '>'
     KAT_OP_LT,     // '<'
     KAT_OP_GTEQ,   // '>='
     KAT_OP_LTEQ,   // '<='
+
+    //unary
+    KAT_OPU_NOT,   // '!'
 
     KAT_COMMA,
     KAT_COLON,
@@ -319,7 +321,7 @@ struct knit_expr {
             struct knit_patch_list *plist;
         } logic_bin;
         struct { 
-            int op; //an INSN (KNEG, etc..)
+            int op; //a lexical token name (KAT_NEG, KAT_NOT, etc..)
             struct knit_expr *operand;
         } un;
         struct {
@@ -469,6 +471,11 @@ enum KNIT_INSN {
 
     KEMIT,  /*inputs (value type: (true|false|null)) push value;*/
 
+    KNOT,  /*s[t-1] = ! s[t-1] */
+    KNEG,  /*s[t-1] = - s[t-1] */
+
+    KNOP,  /* no operation */
+
     KADD,  /*s[t-2] = s[t-2] + s[t-1]; pop 1;*/
     KSUB,  /*s[t-2] = s[t-2] - s[t-1]; pop 1;*/
     KMUL,  /*s[t-2] = s[t-2] * s[t-1]; pop 1;*/
@@ -514,6 +521,9 @@ static struct knit_insninfo {
     {KLLOAD,  "KLLOAD",  1},
     {KLSTORE, "KLSTORE", 1},
     {KEMIT, "KEMIT", 1},
+    {KNOT, "KNOT", 0},
+    {KNEG, "KNEG", 0},
+    {KNOP, "KNOP", 0},
     {KADD,  "KADD",   0},
     {KSUB,  "KSUB",   0},
     {KMUL,  "KMUL",   0},
