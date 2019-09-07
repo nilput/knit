@@ -1,0 +1,4 @@
+hello = "hello";
+nums = [1, 2, 3];
+print('should 5: ', len(hello));
+print('should be 3: ', len(nums));

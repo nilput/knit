@@ -257,12 +257,14 @@ static int knitx_list_destroy(struct knit *knit, struct knit_list *list) {
     return KNIT_OK;
 }
 static int knitx_list_resize(struct knit *knit, struct knit_list *list, int new_sz) {
+    knit_assert_h(list->cap >= list->len, "");
     void *p = NULL;
     int rv = knitx_trealloc(knit, list->items, sizeof(struct knit_obj *) * new_sz, &p);
     if (rv != KNIT_OK) {
         return rv;
     }
     list->items = p;
+    list->cap = new_sz;
     return KNIT_OK;
 }
 static int knitx_list_push(struct knit *knit, struct knit_list *list, struct knit_obj *obj) {
@@ -1504,6 +1506,12 @@ static int knitx_lexer_skip_wspace(struct knit *knit, struct knit_lex *lxr) {
     return KNIT_OK;
 }
 
+static int knitx_lexer_skip_comment(struct knit *knit, struct knit_lex *lxr) {
+    while (lxr->offset < lxr->input->len && lxr->input->str[lxr->offset] != '\n')
+        lxr->offset++;
+    return KNIT_OK;
+}
+
 static int knitx_lexer_lex(struct knit *knit, struct knit_lex *lxr) {
     int rv = KNIT_OK;
     int nextchar = 0;
@@ -1519,6 +1527,7 @@ again:
     else
         nextchar = 0;
     switch (lxr->input->str[lxr->offset]) {
+        case '#':   knitx_lexer_skip_comment(knit, lxr); goto again; break;
         case ';':   rv = knitx_lexer_add_tok(knit, lxr, KAT_SEMICOLON, lxr->offset, 1, lxr->lineno, lxr->colno, NULL); lxr->offset += 1; break;
         case ':':   rv = knitx_lexer_add_tok(knit, lxr, KAT_COLON,     lxr->offset, 1, lxr->lineno, lxr->colno, NULL); lxr->offset += 1; break;
         case '.':   rv = knitx_lexer_add_tok(knit, lxr, KAT_DOT,       lxr->offset, 1, lxr->lineno, lxr->colno, NULL); lxr->offset += 1; break;
@@ -2664,6 +2673,15 @@ static int knitx_emil_assignment(struct knit *knit, struct knit_prs *prs, struct
             knit_fatal_parse(prs, "obj.obj = obj assignment is not implemented");
         }
     }
+    else if (lhs->exptype == KAX_INDEX) {
+        rv = knitx_emit_expr_eval(knit, prs, lhs->u.index.indexed, KEVAL_VALUE, 1);  KNIT_CRV(rv);
+        rv = knitx_emit_expr_eval(knit, prs, lhs->u.index.index,   KEVAL_VALUE, 1);  KNIT_CRV(rv);
+        rv = knitx_emit_expr_eval(knit, prs, rhs, KEVAL_VALUE, 1);  KNIT_CRV(rv); //evaluate the result of rhs and push it
+        rv = knitx_emit_1(knit, prs, KINDX_SET);  KNIT_CRV(rv);
+    }
+    else {
+        knit_fatal_parse(prs, "unexpected lhs type");
+    }
     return KNIT_OK;
 }
 
@@ -2824,6 +2842,9 @@ static int knitx_emit_expr_eval(struct knit *knit, struct knit_prs *prs, struct 
         if (insn_op != KNOP) {
             rv = knitx_emit_1(knit, prs, insn_op);  KNIT_CRV(rv);
         }
+        if (eval_ctx == KEVAL_BOOLEAN) {
+            rv = knitx_emit_1(knit, prs, KTEST); KNIT_CRV(rv);
+        }
     }
     else if (expr->exptype == KAX_BIN_OP) {
         rv = knitx_emit_expr_eval(knit, prs, expr->u.bin.lhs, KEVAL_VALUE, 1);  KNIT_CRV(rv);
@@ -2864,11 +2885,17 @@ static int knitx_emit_expr_eval(struct knit *knit, struct knit_prs *prs, struct 
         //now we expect there are n expressions pushed on the stack
         //we emit the instruction KNLIST which pops these and pushes a list containing them
         rv = knitx_emit_2(knit, prs, KNLIST, elist->len); KNIT_CRV(rv);
+        if (eval_ctx == KEVAL_BOOLEAN) {
+            rv = knitx_emit_1(knit, prs, KTEST); KNIT_CRV(rv);
+        }
     }
     else if (expr->exptype == KAX_INDEX) {
         knitx_emit_expr_eval(knit, prs, expr->u.index.indexed, KEVAL_VALUE, 1);  KNIT_CRV(rv);
         knitx_emit_expr_eval(knit, prs, expr->u.index.index,   KEVAL_VALUE, 1);  KNIT_CRV(rv);
         rv = knitx_emit_1(knit, prs, KINDX);  KNIT_CRV(rv);
+        if (eval_ctx == KEVAL_BOOLEAN) {
+            rv = knitx_emit_1(knit, prs, KTEST); KNIT_CRV(rv);
+        }
     }
     else if (expr->exptype == KAX_LIST_SLICE) {
         knit_fatal_parse(prs, "expr eval currently not implemented");
@@ -3611,6 +3638,25 @@ static int knitx_exec(struct knit *knit) {
             rv = knitx_stack_rpop(knit, stack, 2); KNIT_CRV(rv);
             rv = knitx_stack_rpush(knit, stack, list->items[idx->value]); KNIT_CRV(rv);
         }
+        else if (op == KINDX_SET) {
+            knit_assert_h(knitx_stack_ntemp(knit, &knit->ex.stack) >= 3, "insufficent objects on the stack to do array assignment");
+            struct knit_obj *indexed = stack_vals->data[stack_vals->len - 3];
+            struct knit_obj *index = stack_vals->data[stack_vals->len - 2];
+            struct knit_obj *value = stack_vals->data[stack_vals->len - 1];
+            if (indexed->u.ktype != KNIT_LIST) {
+                return knit_error(knit, KNIT_INVALID_TYPE_ERR, "trying to index a type other than a list");
+            }
+            if (index->u.ktype != KNIT_INT) {
+                return knit_error(knit, KNIT_INVALID_TYPE_ERR, "trying to index using a type other than an int");
+            }
+            struct knit_list *list = (struct knit_list*) indexed;
+            struct knit_int *idx = (struct knit_int*) index;
+            if (idx->value < 0 || idx->value >= list->len) {
+                return knit_error(knit, KNIT_OUT_OF_RANGE_ERR, "index is out of range");
+            }
+            list->items[idx->value] = value;
+            rv = knitx_stack_rpop(knit, stack, 3); KNIT_CRV(rv);
+        }
         else if (op == KDOT) {
             knit_assert_h(knitx_stack_ntemp(knit, &knit->ex.stack) >= 2, "no objects to index on");
             struct knit_obj *indexed = stack_vals->data[stack_vals->len - 2];
@@ -3623,9 +3669,6 @@ static int knitx_exec(struct knit *knit) {
             int rv = knitx_obj_get_property(knit, indexed, index_s, &prop); KNIT_CRV(rv);
             rv = knitx_stack_rpop(knit, stack, 2); KNIT_CRV(rv);
             rv = knitx_stack_rpush(knit, stack, prop); KNIT_CRV(rv);
-        }
-        else if (op == KSET) {
-            knit_fatal("insn not supported: %s", knit_insn_name(op));
         }
         else if (op == KNLIST) {
             int nelements = insn->op1;

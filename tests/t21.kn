@@ -1,0 +1,8 @@
+arr = [true, false];
+print('expecting only: "arr[0]: true" to be printed');
+if (arr[0]) {
+    print('arr[0]: true');
+}
+if (arr[1]) {
+    print('arr[1]: true');
+}

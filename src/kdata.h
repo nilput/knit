@@ -446,6 +446,7 @@ enum KNIT_INSN {
 
     KCALL,     /*inputs: (nargs, nexpected)       op: s[t-1](args...)*/
     KINDX,     /*inputs: (none)  op: s[t - 2] = (s[t - 2])[s[t - 1]]; t -= 1*/
+    KINDX_SET, /*inputs: (none)  op: s[t - 3][s[t-2]] = s[t - 1]; t -= 3*/
     KDOT,      /*inputs: (none)  op: s[t - 2] = (s[t - 2]).s[t - 1]; t -= 1*/
     KRET,      /*inputs: (count,)  op: s[prev_bsp : prev_bsp + count] = s[t-count : t] t = prev_bsp + count;*/
 
@@ -463,8 +464,6 @@ enum KNIT_INSN {
     KTEST,      /*inputs: (none)  (runtime.last_condition) = bool (s[t-1]); pop1*/
 
     KSAVETEST,  /*inputs: (none)  push runtime.last_condition; */
-
-    KSET,      /*inputs: (none)  op: *s[t-2] = s[t-1]; pop(2);*/
 
     KNLIST,      /*inputs: (n)  op: s[t] = new_list( s[t - n : t] ) t -= n; t++;*/
     KLIST_PUSH,  /*inputs: (none)  op: push(list: s[t-1], obj: s[t]); pop(1)*/
@@ -503,6 +502,7 @@ static struct knit_insninfo {
     {K_GLB_STORE, "K_GLB_STORE", 0},
     {KCALL, "KCALL", 2},
     {KINDX, "KINDX", 0},
+    {KINDX_SET, "KINDX_SET", 0},
     {KDOT,  "KDOT", 0},
     {KRET,  "KRET", 1},
 
@@ -519,7 +519,6 @@ static struct knit_insninfo {
     {KTEST,      "KTEST", 0},
     {KSAVETEST,  "KSAVETEST", 0},
 
-    {KSET,  "KSET", 0},
     {KNLIST,  "KNLIST", 1},
     {KLIST_PUSH,  "KLIST_PUSH", 0},
     {KLLOAD,  "KLLOAD",  1},
@@ -593,6 +592,7 @@ struct knit_builtins {
 
     struct {
         struct knit_cfunc print;
+        struct knit_cfunc len;
     } funcs; //global functions
 };
 

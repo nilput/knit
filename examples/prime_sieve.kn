@@ -1,0 +1,34 @@
+print_primes = function(max) {
+    primes = [];
+    i = 0;
+    while (i < max + 1) {
+        primes.append(true);
+        i = i + 1;
+    }
+    i = 0;
+    while ((i < max) and (i <= 1)) {
+        primes[i] = false;
+        i = i + 1;
+    }
+    i = 1;
+    while (i < max) {
+        if (primes[i]) {
+            j = i * 2;
+            while (j < max) {
+                primes[j] = false;
+                j = j + i;
+            }
+        }
+        i = i + 1;
+    }
+    i = 0;
+    while (i < max) {
+        if (primes[i]) {
+            print(i);
+        }
+        i = i + 1;
+    }
+
+};
+
+print_primes(1000);

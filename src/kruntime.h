@@ -52,6 +52,30 @@ static int knitxr_print(struct knit *kstate) {
     knitx_str_deinit(kstate, &tmp);
     return KNIT_OK;
 }
+static int knitxr_len(struct knit *kstate) {
+    int nargs = knitx_nargs(kstate);
+    if (nargs != 1) { 
+        return knit_error(kstate, KNIT_NARGS, "knitxr_len(obj) was called with a wrong number of arguments, expecting 1 argument");
+    }
+    struct knit_obj *obj = NULL;
+    int rv = knitx_get_arg(kstate, 0, &obj); KNIT_CRV(rv);
+    struct knit_int *num = NULL;
+    rv = knitx_int_new(kstate, &num, 0); KNIT_CRV(rv);
+
+    if (obj->u.ktype == KNIT_LIST) {
+        num->value = obj->u.list.len;
+    }
+    else if (obj->u.ktype == KNIT_STR) {
+        num->value = obj->u.str.len;
+    }
+    else {
+        return knit_error(kstate, KNIT_INVALID_TYPE_ERR, "knitx_len(obj) was called with an unexpected type, expecting str or list");
+    }
+
+    knitx_stack_rpush(kstate, &kstate->ex.stack, ktobj(num));
+    knitx_creturns(kstate, 1);
+    return KNIT_OK;
+}
 
 
 const struct knit_builtins kbuiltins = {
@@ -71,6 +95,10 @@ const struct knit_builtins kbuiltins = {
         .print = {
             .ktype = KNIT_CFUNC,
             .fptr = knitxr_print,
+        },
+        .len = {
+            .ktype = KNIT_CFUNC,
+            .fptr = knitxr_len,
         }
     }
 };
@@ -99,5 +127,6 @@ static int knitx_register_constcfunction(struct knit *kstate, const char *funcna
 
 static int knitxr_register_stdlib(struct knit *kstate) {
     int rv = knitx_register_constcfunction(kstate, "print", &kbuiltins.funcs.print); KNIT_CRV(rv);
+    rv = knitx_register_constcfunction(kstate, "len", &kbuiltins.funcs.len); KNIT_CRV(rv);
     return KNIT_OK;
 }
