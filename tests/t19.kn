@@ -1,0 +1,5 @@
+fn = function(str) {
+    return '"' + str.strip() + '"';
+};
+
+print(fn(" a b "));

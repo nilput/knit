@@ -29,7 +29,7 @@ opt: CFLAGS := $(CFLAGS) -O2
 opt: test
 test: src/test.c $(GEN) src/knit.h
 	$(CC) $(CFLAGS) $(HASHT_INC) $< -o $@
-src/knit.h: src/kdata.h
+src/knit.h: src/kdata.h src/kruntime.h
 clean:
 	rm -f $(GEN) 2>/dev/null
 	rm -f test   2>/dev/null

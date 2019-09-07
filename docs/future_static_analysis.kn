@@ -1,0 +1,39 @@
+type dog {
+    int age;
+
+    function init(self, age) {
+        self.age = age;
+    }
+    function say(self) {
+        return "woof";
+    }
+}
+type cat {
+    int age;
+    object sound;
+    function init(self, age, sound) {
+        self.age = age;
+        self.sound = sound;
+    }
+    function say(self) {
+        return self.sound;
+    }
+}
+
+type duck {
+    function init(self) {
+    }
+}
+
+function play_sounds(array) {
+    for animal in array {
+        print(animal.say());
+    }
+}
+
+function main() {
+    list_a = [ dog(3), dog(5), cat(10) ];
+    play_sounds(list_a); #Ok, all types have a .say() method
+    list_b = [ cat(10), duck(3) ];
+    play_sounds(list_b); #NOT OK, duck doesn't have a .say() method
+}

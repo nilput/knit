@@ -89,9 +89,11 @@ static struct knit_list *knit_as_list(struct knit_obj *obj) {
 
 static void knitx_obj_incref(struct knit *knit, struct knit_obj *obj) {
 }
+
 static void knitx_obj_decref(struct knit *knit, struct knit_obj *obj) {
 }
 
+/*currently not used in a meaningful way, ARC might be used or garbage collection*/
 #define kincref(p) knitx_obj_incref(knit, (struct knit_obj *)(p))
 #define kdecref(p) knitx_obj_decref(knit, (struct knit_obj *)(p))
 #define ktobj(p) ((struct knit_obj *) (p))
@@ -99,6 +101,7 @@ static void knitx_obj_decref(struct knit *knit, struct knit_obj *obj) {
 static const char *knitx_obj_type_name(struct knit *knit, struct knit_obj *obj);
 static int knitx_obj_rep(struct knit *knit, struct knit_obj *obj, struct knit_str *outi_str, int human);
 static int knitx_obj_dump(struct knit *knit, struct knit_obj *obj);
+
 
 //fwd
 static int knit_error(struct knit *knit, int err_type, const char *fmt, ...);
@@ -165,6 +168,7 @@ static int knitx_rrealloc(struct knit *knit, void *p, size_t sz, void **m) {
     *m = np;
     return KNIT_OK;
 }
+//assumes the length of both was checked and it was equal!
 static int knit_strl_eq(const char *a, const char *b, size_t len) {
     return memcmp(a, b, len) == 0;
 }
@@ -487,7 +491,7 @@ static int knitx_str_mutstrip(struct knit *knit, struct knit_str *str, const cha
             begin++;
     }
     if (opts & KNITX_STRIP_RIGHT) {
-        for (int i=str->len - 1; i > begin && strchr(stripchars, str->str[i]); i++)
+        for (int i=str->len - 1; i > begin && strchr(stripchars, str->str[i]); i--)
             end--;
     }
     if (begin == 0 && end == str->len)
@@ -722,6 +726,35 @@ static int knitx_get_str(struct knit *knit, const char *varname, struct knit_str
         return rv;
     *kstrp = knit_as_str(objp);
     return KNIT_OK;
+}
+
+
+static int knitx_type_str_get_property(struct knit *knit, struct knit_str *property_name, struct knit_obj **obj_out) {
+    if (property_name->len == 5 && knit_strl_eq(property_name->str, "strip", 5)) {
+        *obj_out = (struct knit_obj *) &kbuiltins.kstr.strip;
+        return KNIT_OK;
+    }
+    *obj_out = NULL;
+    return knit_error(knit, KNIT_UNDEFINED, "knitx_type_str_get_property(): property %s is not defined", property_name->str);
+}
+static int knitx_type_list_get_property(struct knit *knit, struct knit_str *property_name, struct knit_obj **obj_out) {
+    if (property_name->len == 6 && knit_strl_eq(property_name->str, "append", 6)) {
+        *obj_out = (struct knit_obj *) &kbuiltins.klist.append;
+        return KNIT_OK;
+    }
+    *obj_out = NULL;
+    return knit_error(knit, KNIT_UNDEFINED, "knitx_type_list_get_property(): property %s is not defined", property_name->str);
+}
+static int knitx_obj_get_property(struct knit *knit, struct knit_obj *obj, struct knit_str *name, struct knit_obj **obj_out) {
+    if (obj->u.ktype == KNIT_STR) {
+        return knitx_type_str_get_property(knit, name, obj_out);
+    }
+    else if (obj->u.ktype == KNIT_LIST) {
+        return knitx_type_list_get_property(knit, name, obj_out);
+    }
+    else {
+        return knit_error(knit, KNIT_RUNTIME_ERR, "cannot get a property out of this type of object");
+    }
 }
 
 struct knit_lex; //fwd
@@ -2116,7 +2149,6 @@ static int knitx_save_expr(struct knit *knit, struct knit_prs *prs, struct knit_
     *exprp = p;
     return KNIT_OK;
 }
-
 static int kexpr_save_constant(struct knit *knit, struct knit_prs *prs,  struct knit_expr *expr, int *index_out) {
     struct knit_obj *obj = NULL;
     int rv = KNIT_OK;
@@ -2553,6 +2585,7 @@ static int knitx_emit_3(struct knit *knit, struct knit_prs *prs, int opcode, int
 enum knit_eval_context {
     KEVAL_VALUE, //pushes on the stack
     KEVAL_BOOLEAN, //in case of boolean expressions it doesn't push, instead uses ex.last_cond
+    KEVAL_MCALL, //eval as a method call, this prevents popping the 'self' reference
 };
 static int knitx_emit_expr_eval(struct knit *knit, struct knit_prs *prs, struct knit_expr *expr, int eval_ctx, int nexpected); //fwd
 
@@ -2628,7 +2661,7 @@ static int knitx_emil_assignment(struct knit *knit, struct knit_prs *prs, struct
             rv = knitx_emit_1(knit, prs, K_GLB_STORE);
         }
         else {
-            knit_fatal_parse(prs, "obj.obj style access not implemented");
+            knit_fatal_parse(prs, "obj.obj = obj assignment is not implemented");
         }
     }
     return KNIT_OK;
@@ -2676,7 +2709,7 @@ static int knitx_emit_logical_operation(struct knit *knit,
     if (expr->u.logic_bin.op == KAT_LAND) {
         rv = knitx_emit_expr_eval(knit, prs, expr->u.logic_bin.lhs, eval_ctx, nexpected); KNIT_CRV(rv);
         if (eval_ctx == KEVAL_VALUE) {
-            knitx_emit_2(knit, prs, KPUSH, -1);
+            knitx_emit_2(knit, prs, KPUSH, -1); //duplicate and test
             knitx_emit_1(knit, prs, KTEST);
         }
         knitx_emit_2(knit, prs, KJMPFALSE, KINSN_ADDR_UNK);
@@ -2730,15 +2763,24 @@ static int knitx_emit_expr_eval(struct knit *knit, struct knit_prs *prs, struct 
             struct knit_expr *arg_expr = expr->u.call.args.data[i]; 
             rv = knitx_emit_expr_eval(knit, prs, arg_expr, KEVAL_VALUE, 1); KNIT_CRV(rv);
         }
-        rv = knitx_emit_expr_eval(knit, prs, expr->u.call.called, KEVAL_VALUE, 1); KNIT_CRV(rv);
+        int nargs = expr->u.call.args.len;
+        if (expr->u.call.called->exptype == KAX_OBJ_DOT) {
+            //currently any obj.func call is assumed to be am method call, this should probably be fixed
+            nargs++;
+            rv = knitx_emit_expr_eval(knit, prs, expr->u.call.called, KEVAL_MCALL, 2); KNIT_CRV(rv);
+        }
+        else {
+            rv = knitx_emit_expr_eval(knit, prs, expr->u.call.called, KEVAL_VALUE, 1); KNIT_CRV(rv);
+        }
+
         //TODO at this point the stack will have return values
         //this will be broken if a function returns more than 1, or returns 0 values
         if (eval_ctx == KEVAL_BOOLEAN) {
-            rv = knitx_emit_3(knit, prs, KCALL, expr->u.call.args.len, 1); KNIT_CRV(rv);
+            rv = knitx_emit_3(knit, prs, KCALL, nargs, 1); KNIT_CRV(rv);
             rv = knitx_emit_1(knit, prs, KTEST); KNIT_CRV(rv);
         }
         else {
-            rv = knitx_emit_3(knit, prs, KCALL, expr->u.call.args.len, nexpected); KNIT_CRV(rv);
+            rv = knitx_emit_3(knit, prs, KCALL, nargs, nexpected); KNIT_CRV(rv);
         }
     }
     else if (expr->exptype == KAX_FUNCTION) {
@@ -2882,9 +2924,6 @@ static int knitx_emit_expr_eval(struct knit *knit, struct knit_prs *prs, struct 
         struct knit_expr *parent = expr->u.prefix.parent;
         struct knit_varname_chain *chain = expr->u.prefix.chain;
         knit_assert_h(parent && chain && chain->name, "invalid KAX_OBJ_DOT object");
-        if (nexpected != 1) {
-            knit_fatal_parse(prs, "expr eval of a variable cant be discarded, it must return a single value");
-        }
         if (parent->exptype == KAX_VAR_REF && knitx_str_streqc(knit, parent->u.varref.name, "g")) {
             if (chain->next) {
                 knit_fatal_parse(prs, "obj.obj style access not implemented");
@@ -2898,10 +2937,36 @@ static int knitx_emit_expr_eval(struct knit *knit, struct knit_prs *prs, struct 
             rv = knitx_emit_1(knit, prs, K_GLB_LOAD);  KNIT_CRV(rv);
         }
         else {
-            knit_fatal_parse(prs, "obj.obj style access not implemented, (only globals are supported)");
+            rv = knitx_emit_expr_eval(knit, prs, parent, KEVAL_VALUE, 1); KNIT_CRV(rv);
+            while (chain) {
+                //this should improved to be statically computed when possible somehow
+                int idx = -1;
+
+                struct knit_str *namecpy = NULL;
+                rv = knitx_str_new_copy(knit, &namecpy, chain->name);
+                rv = knitx_block_add_constant(knit, &prs->curblk->block, (struct knit_obj *) namecpy, &idx); KNIT_CRV(rv);
+
+                if (!chain->next && eval_ctx == KEVAL_MCALL) {
+                    knit_assert_h(nexpected == 2, "MCALL evaluation returns two values");
+                    //a.b.c.d
+                    //    ^ keep this in order to use it as self in a method call
+                    knitx_emit_2(knit, prs, KPUSH, -1);
+                }
+
+                rv = knitx_emit_2(knit, prs, KCLOAD, idx);  KNIT_CRV(rv);
+                rv = knitx_emit_1(knit, prs, KDOT);  KNIT_CRV(rv);
+                chain = chain->next;
+            }
         }
         if (eval_ctx == KEVAL_BOOLEAN) {
             rv = knitx_emit_1(knit, prs, KTEST); KNIT_CRV(rv);
+        }
+        else if (eval_ctx == KEVAL_MCALL) {
+            if (nexpected != 2)
+                knit_fatal_parse(prs, "MCALL evaluation must return 2 values");
+        }
+        else if (nexpected != 1) {
+            knit_fatal_parse(prs, "expr eval of a variable cant be discarded, it must return a single value");
         }
     }
     else if (expr->exptype == KAX_LITERAL_NULL  ||
@@ -3292,8 +3357,8 @@ static inline int knitx_op_do_binop(struct knit *knit, struct knit_obj *a, struc
             return knit_error(knit, KNIT_RUNTIME_ERR, "division by zero");
         }
         struct knit_int *ri = NULL;
-        int rv = knitx_int_new(knit, &ri, 0);
-        *r = ktobj(ri); KNIT_CRV(rv);
+        int rv = knitx_int_new(knit, &ri, 0); KNIT_CRV(rv);
+        *r = ktobj(ri); 
         switch (op) {
             case KADD: ri->value = ai->value + bi->value; break;
             case KSUB: ri->value = ai->value - bi->value; break;
@@ -3303,6 +3368,14 @@ static inline int knitx_op_do_binop(struct knit *knit, struct knit_obj *a, struc
             default:
                 knit_fatal("unsupported op for ints: %s", knit_insn_name(op));
         }
+    }
+    else if (a->u.ktype == KNIT_STR && b->u.ktype == KNIT_STR && op == KADD) {
+        struct knit_str *as = (struct knit_str *) a;
+        struct knit_str *bs = (struct knit_str *) b;
+        struct knit_str *rs = NULL;
+        int rv = knitx_str_new_copy(knit, &rs, as); KNIT_CRV(rv);
+        rv = knitx_str_strlappend(knit, rs, bs->str, bs->len); KNIT_CRV(rv);
+        *r = ktobj(rs);
     }
     else {
         knit_fatal("knitx_op_add(): unsupported types for %s: %s and %s", knit_insn_name(op), knitx_obj_type_name(knit, a), knitx_obj_type_name(knit, b));
@@ -3538,6 +3611,19 @@ static int knitx_exec(struct knit *knit) {
             rv = knitx_stack_rpop(knit, stack, 2); KNIT_CRV(rv);
             rv = knitx_stack_rpush(knit, stack, list->items[idx->value]); KNIT_CRV(rv);
         }
+        else if (op == KDOT) {
+            knit_assert_h(knitx_stack_ntemp(knit, &knit->ex.stack) >= 2, "no objects to index on");
+            struct knit_obj *indexed = stack_vals->data[stack_vals->len - 2];
+            struct knit_obj *index = stack_vals->data[stack_vals->len - 1];
+            knit_assert_h(index->u.ktype == KNIT_STR, "expecting property name to be a string");
+
+            struct knit_str *index_s = (struct knit_str *)index;
+
+            struct knit_obj *prop = NULL;
+            int rv = knitx_obj_get_property(knit, indexed, index_s, &prop); KNIT_CRV(rv);
+            rv = knitx_stack_rpop(knit, stack, 2); KNIT_CRV(rv);
+            rv = knitx_stack_rpush(knit, stack, prop); KNIT_CRV(rv);
+        }
         else if (op == KSET) {
             knit_fatal("insn not supported: %s", knit_insn_name(op));
         }
@@ -3706,6 +3792,7 @@ static int knitx_exec_str(struct knit *knit, const char *program) {
 
     return KNIT_OK; //dummy
 }
+
 
 static int knitx_init(struct knit *knit, int opts) {
     int rv;

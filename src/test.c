@@ -35,7 +35,7 @@ static void idie(const char *fmt, ...) {
     va_end(ap);
     exit(1);
 }
-char *readordie(char *filename) {
+char *readordie(const char *filename) {
     FILE *f = fopen(filename, "r");
     if (!f)
         idie("failed to open '%s'\n", filename);
@@ -52,7 +52,7 @@ char *readordie(char *filename) {
     return m;
 }
 
-void interactive(void) {
+void interactive(const char *n) {
     struct knit knit;
     knitx_init(&knit, KNIT_POLICY_EXIT);
     knitxr_register_stdlib(&knit);
@@ -122,7 +122,7 @@ void interactive(void) {
 #endif
     knitx_deinit(&knit);
 }
-void t1(void) {
+void t1(const char *unused) {
     struct knit knit;
     knitx_init(&knit, KNIT_POLICY_EXIT);
     knitxr_register_stdlib(&knit);
@@ -136,7 +136,7 @@ void t1(void) {
 #endif
     knitx_deinit(&knit);
 }
-void t2(void) {
+void t2(const char *unused) {
     struct knit knit;
     knitx_init(&knit, KNIT_POLICY_EXIT);
     knitx_set_str(&knit, "name", "john"); //short for knitx_init(&knit, ...)
@@ -152,21 +152,21 @@ void t2(void) {
     printf("%s : %s\n", "name", str->str);
     knitx_deinit(&knit);
 }
-void t3(void) {
+void t3(const char *unused) {
     struct knit knit;
     knitx_init(&knit, KNIT_POLICY_EXIT);
     knitx_exec_str(&knit, "g.result = 23 + (8 - 5);");
     knitx_globals_dump(&knit);
     knitx_deinit(&knit);
 }
-void t4(void) {
+void t4(const char *unused) {
     struct knit knit;
     knitx_init(&knit, KNIT_POLICY_EXIT);
     knitx_exec_str(&knit, "1 + 3;");
     knitx_deinit(&knit);
 }
 
-void t5(void) {
+void t5(const char *unused) {
     struct knit knit;
     knitx_init(&knit, KNIT_POLICY_EXIT);
     knitxr_register_stdlib(&knit);
@@ -180,7 +180,7 @@ void t5(void) {
     knitx_deinit(&knit);
 }
 
-void t6(void) {
+void t6(const char *unused) {
     struct knit knit;
     knitx_init(&knit, KNIT_POLICY_EXIT);
     knitxr_register_stdlib(&knit);
@@ -202,7 +202,7 @@ void t6(void) {
     knitx_globals_dump(&knit);
     knitx_deinit(&knit);
 }
-void t7(void) {
+void t7(const char *unused) {
     struct knit knit;
     knitx_init(&knit, KNIT_POLICY_EXIT);
     knitxr_register_stdlib(&knit);
@@ -242,7 +242,7 @@ void t7(void) {
     knitx_deinit(&knit);
 }
 
-void t8(void) {
+void t8(const char *unused) {
 
     struct knit knit;
     knitx_init(&knit, KNIT_POLICY_EXIT);
@@ -269,7 +269,7 @@ void t8(void) {
     knitx_deinit(&knit);
 }
 
-void generic_file_test(char *filename) {
+void generic_file_test(const char *filename) {
     struct knit knit;
     knitx_init(&knit, KNIT_POLICY_EXIT);
     knitxr_register_stdlib(&knit);
@@ -283,38 +283,8 @@ void generic_file_test(char *filename) {
 #endif
     knitx_deinit(&knit);
 }
-void t9(void) {
-    generic_file_test("tests/t9.kn");
-}
-void t10(void) {
-    generic_file_test("tests/t10.kn");
-}
-void t11(void) {
-    generic_file_test("tests/t11.kn");
-}
-void t12(void) {
-    generic_file_test("tests/t12.kn");
-}
-void t13(void) {
-    generic_file_test("tests/t13.kn");
-}
-void t14(void) {
-    generic_file_test("tests/t14.kn");
-}
-void t15(void) {
-    generic_file_test("tests/t15.kn");
-}
-void t16(void) {
-    generic_file_test("tests/t16.kn");
-}
-void t17(void) {
-    generic_file_test("tests/t17.kn");
-}
-void t18(void) {
-    generic_file_test("tests/t18.kn");
-}
 
-void (*funcs[])(void) = {
+void (*funcs[])(const char *unused) = {
     t1,
     t2,
     t3,
@@ -323,19 +293,12 @@ void (*funcs[])(void) = {
     t6,
     t7,
     t8,
-    t9,
-    t10,
-    t11,
-    t12,
-    t13,
-    t14,
-    t15,
-    t16,
-    t17,
-    t18,
 };
 int main(int argc, char **argv) {
-    void (*func)(void) = interactive;
+    void (*func)(const char *) = interactive;
+    char testname[255] = {0};
+    char *arg = NULL;
+
     parse_argv(argv, argc);
     if (knopts.verbose)
         KNIT_DBG_PRINT = 1;
@@ -343,11 +306,16 @@ int main(int argc, char **argv) {
         func = interactive;
     }
     else {
-        int c = knopts.testno - 1;
+        int c = knopts.testno;
         int nfuncs = (sizeof funcs  / sizeof funcs[0]);
-        if (c < 0 || c >= nfuncs)
-            idie("invalid test number specified");
-        func = funcs[c];
+        if (c <= 0 || c > nfuncs) {
+            snprintf(testname, 255, "tests/t%d.kn", c);
+            func = generic_file_test;
+            arg = testname;
+        }
+        else {
+            func = funcs[c - 1];
+        }
     }
-    func();
+    func(arg);
 }
