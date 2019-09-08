@@ -58,15 +58,17 @@ void interactive(const char *n) {
     knitxr_register_stdlib(&knit);
 
 
-#define BBUFLEN 4096
-    char buf[BBUFLEN] = {0};
+#define BBUFFSZ 4096
+    char buf[BBUFFSZ] = {0};
     enum foci {
         CURLY,
         PAREN,
         BRACKET,
     };
     int focus[3] = {0, 0, 0};
+    int waiting = 0;
     int at = 0;
+    int len = 0;
 
 #ifdef KNIT_HAVE_ISATTY
     int istty = isatty(0);
@@ -80,7 +82,7 @@ void interactive(const char *n) {
     }
 
     while (1) {
-        int canread = BBUFLEN - at;
+        int canread = BBUFFSZ - len;
         if (canread <= 1)
             idie("input buffer full");
         //accumulate into buffer, while trying to be smart about language constructs
@@ -92,28 +94,36 @@ void interactive(const char *n) {
         if (!ln)
             break;
         int read_bytes = strlen(d); 
-        at += read_bytes;
+        len += read_bytes;
         int semi = 0;
-        for (int i=0; i<read_bytes; i++) {
-            switch (d[i]) {
-                case '{': semi = 0; focus[CURLY]++;   break;
-                case '}': semi = 0; focus[CURLY]--;   break;
-                case '(': semi = 0; focus[PAREN]++;   break;
-                case ')': semi = 0; focus[PAREN]--;   break;
-                case '[': semi = 0; focus[BRACKET]++; break;
-                case ']': semi = 0; focus[BRACKET]--; break;
+again:
+        for (; at<len; at++) {
+            switch (buf[at]) {
+                case '{': semi = 0; focus[CURLY]++;   waiting++; break;
+                case '}': semi = 0; focus[CURLY]--;   waiting--; break;
+                case '(': semi = 0; focus[PAREN]++;   waiting++; break;
+                case ')': semi = 0; focus[PAREN]--;   waiting--; break;
+                case '[': semi = 0; focus[BRACKET]++; waiting++; break;
+                case ']': semi = 0; focus[BRACKET]--; waiting--; break;
                 case ';': semi++; break;
             }
-        }
-        int waiting = 0;
-        for (int i=0; i < (int)(sizeof focus / sizeof focus[0]); i++)
-            waiting += focus[i];
-        if (!waiting && semi) {
-            knitx_exec_str(&knit, buf);
-            at = 0;
+            if (!waiting && semi) {
+                {
+                    int tmp = buf[at+1];
+                    buf[at+1] = 0;
+                    knitx_exec_str(&knit, buf);
+                    buf[at+1] = tmp;
+                }
+                len = len - at - 1;
+                memcpy(buf, buf + at + 1, len); 
+                buf[len] = 0;
+                at = 0;
+                semi = 0;
+                goto again;
+            }
         }
     }
-#undef BBUFLEN 
+#undef BBUFFSZ 
 
 #ifdef KNIT_DEBUG_PRINT
     if (KNIT_DBG_PRINT) {

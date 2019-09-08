@@ -1,0 +1,1 @@
+emcc -O3 -s WASM=1 -s 'EXTRA_EXPORTED_RUNTIME_METHODS=["ccall", "cwrap"]' -s ASSERTIONS=1 -Wall -Wextra  -Wno-unused-function -Wno-unused-variable -Wno-unused-parameter -I ../hasht/src/ -I ../hasht/third_party/ -I ../src emi.c --shell-file shell_minimal.html -o knit.html

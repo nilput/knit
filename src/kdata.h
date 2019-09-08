@@ -588,7 +588,7 @@ struct knit_builtins {
     } kstr; //str methods
     struct {
         struct knit_cfunc append;
-    } klist; //str methods
+    } klist; //list methods
 
     struct {
         struct knit_cfunc print;
