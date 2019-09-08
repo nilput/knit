@@ -56,20 +56,12 @@
       <progress value="0" max="100" id="progress" hidden=1></progress>  
     </div>
 
-    <hr/>
-    <div class="emscripten">
-      &nbsp;&nbsp;&nbsp;
-    </div>
     
-    <hr/>
 
-        
-        <script src="xterm.js"></script>
+    
+    <script src="xterm.js"></script>
 
-        <div id="terminal"></div>
-        <script>
-
-        </script>
+    <div id="terminal"></div>
       
 
     <hr>
@@ -118,13 +110,10 @@
         postRun: [],
         print: (function() {
           return function(text) {
-            if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
             console.log(text);
           };
         })(),
-        printErr: function(text) {
-          if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
-          //term.write(text);
+        printErr: function(text) {;
           console.log(text);
         },
         canvas: (function() {
@@ -174,8 +163,42 @@
         'rows' : 30,
       });
 
+      function feed() {
+        console.log('feeding with: "' +input_buffer + '"');
+          Module.ccall('feed_input', // name of C function
+                      null, // return type
+                      ['string'], // argument types
+                      [input_buffer,]);
+          input_buffer = '';
+      }
+
       term.open(document.getElementById('terminal'));
-      term.onData = function(e){console.log(e)};
+
+      term.onData (function(data){
+        for (let byte of data) {
+          let num = byte.charCodeAt(0);
+
+          if (num == 13) {
+            term.prompt();
+            input_buffer += byte;
+            feed();
+          }
+          else if (byte.match(/^[\d\w;\]\[\(\)\{\}.,!@#$%+\-*/=^&~`'"<>:?\b \t\n\r]$/i)) {
+            input_buffer += byte;
+            term.write(byte);
+          }
+          
+        }
+      });
+      term.onKey(function(e) {
+        if (e.domEvent.keyCode === 8) {
+            // Do not delete the prompt
+            console.log('delet');
+            if (term._core.buffer.x > 2) {
+              term.write('\b \b');
+              input_buffer = input_buffer.substr(0, input_buffer.length-1);
+            }
+      }});
 
 
       term.prompt = () => {
@@ -184,34 +207,6 @@
 
       term.writeln('');
       term.prompt();
-
-      term.onKey(
-        function(e) {
-        const ev = e.domEvent;
-        const printable = !ev.altKey && !ev.ctrlKey && !ev.metaKey;
-        
-        
-        if (ev.keyCode === 13) {
-          term.prompt();
-          input_buffer += e.key;
-          console.log('feeding with: "' +input_buffer + '"');
-          Module.ccall('feed_input', // name of C function
-                      null, // return type
-                      ['string'], // argument types
-                      [input_buffer,]);
-          input_buffer = '';
-
-        } else if (ev.keyCode === 8) {
-          // Do not delete the prompt
-          if (term._core.buffer.x > 2) {
-            term.write('\b \b');
-            input_buffer = input_buffer.substr(0, input_buffer.length-1);
-          }
-        } else if (printable) {
-          input_buffer += e.key;
-          term.write(e.key);
-        }
-      });
 
 
     </script>
