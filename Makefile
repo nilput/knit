@@ -1,8 +1,7 @@
 
 .PHONY: all clean
-GEN :=        src/vars_hasht.h src/mem_hasht.h src/tok_darray.h src/insns_darray.h
-GEN := $(GEN) src/knit_objp_darray.h src/knit_frame_darray.h src/knit_expr_darray.h src/knit_varname_darray.h
-
+GEN :=        src/vars_hasht.h src/mem_hasht.h src/kobj_hasht.h src/tok_darray.h src/insns_darray.h
+GEN := $(GEN) src/knit_objp_darray.h src/knit_frame_darray.h src/knit_expr_darray.h src/knit_varname_darray.h 
 all: test $(GEN)
 HASHT_INC := -I hasht/src/ -I hasht/third_party/
 
@@ -10,6 +9,8 @@ src/vars_hasht.h: hasht/src/hasht.h
 	./hasht/scripts/gen_hasht.sh vars_hasht $@
 src/mem_hasht.h: hasht/src/hasht.h
 	./hasht/scripts/gen_hasht.sh mem_hasht $@
+src/kobj_hasht.h: hasht/src/hasht.h
+	./hasht/scripts/gen_hasht.sh kobj_hasht $@
 src/tok_darray.h: src/darray/src/darray.h
 	./src/darray/scripts/gen_darray.sh tok_darray 'struct knit_tok' $@
 src/insns_darray.h: src/darray/src/darray.h

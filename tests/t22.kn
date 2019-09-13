@@ -1,0 +1,17 @@
+ht = {"a" : 0, "hello": "world"};
+print('note: order doesnt matter');
+print('expected: {"a" : 0, "hello": "world"}');
+print(ht);
+ht["foo"] = "bar";
+print('expected: {"a" : 0, "hello": "world", "foo": "bar"}');
+print(ht);
+k = "key";
+v = "value";
+ht = {k : v};
+print('expected: {"key" : "value"}');
+print(ht);
+print('expected: "value"');
+print(ht[k]);
+ht[0] = "zero";
+print('expected: "zero"');
+print(ht[0]);
