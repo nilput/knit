@@ -115,7 +115,7 @@ again:
                     buf[at+1] = tmp;
                 }
                 len = len - at - 1;
-                memcpy(buf, buf + at + 1, len); 
+                memmove(buf, buf + at + 1, len); 
                 buf[len] = 0;
                 at = 0;
                 semi = 0;

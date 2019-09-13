@@ -37,12 +37,18 @@ again:
             {
                 int tmp = buf[at+1];
                 buf[at+1] = 0;
+//#define DBG
+#ifdef DBG
+                printf("buff:\n'''%s'''\n", buf);
+                puts("");
+                fflush(stdout);
+#endif
                 knitx_exec_str(&knit, buf);
                 buf[at+1] = tmp;
                 fflush(stdout);
             }
             len = len - at - 1;
-            memcpy(buf, buf + at + 1, len); 
+            memmove(buf, buf + at + 1, len); 
             buf[len] = 0;
             at = 0;
             semi = 0;

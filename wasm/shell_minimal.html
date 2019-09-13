@@ -83,8 +83,9 @@
 
           var stdoutBuffer = "";
           function stdout(code) {
-            if (code === "\n".charCodeAt(0) && stdoutBuffer !== "") {
-              console.log(stdoutBuffer);
+            if (code === 13)
+              return; //skip
+            if (code === "\n".charCodeAt(0)) {
               term.write(stdoutBuffer);
               term.prompt();
               stdoutBuffer = "";
@@ -92,10 +93,12 @@
               stdoutBuffer += String.fromCharCode(code);
             }
           }
+          window.stdout = stdout; //debug
+            
 
           var stderrBuffer = "";
           function stderr(code) {
-            if (code === "\n".charCodeAt(0) && stderrBuffer !== "") {
+            if (code === "\n".charCodeAt(0)) {
               console.log(stderrBuffer);
               term.write(stderrBuffer);
               stderrBuffer = "";
@@ -149,11 +152,12 @@
       };
       Module.setStatus('Downloading...');
       window.onerror = function() {
-        Module.setStatus('Exception thrown, see JavaScript console');
+        Module.setStatus('Exception thrown, see JavaScript console, (restarting in 3 seconds)');
         spinnerElement.style.display = 'none';
         Module.setStatus = function(text) {
           if (text) Module.printErr('[post-exception status] ' + text);
         };
+        setTimeout(function(){window.location = window.location}, 3000);
       };
 
 
@@ -204,6 +208,8 @@
       term.prompt = () => {
         term.write('\r\n$ ');
       };
+
+      window.term = term; //debug
 
       term.writeln('');
       term.prompt();
