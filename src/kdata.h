@@ -671,6 +671,8 @@ struct knit_builtins {
     struct {
         struct knit_cfunc print;
         struct knit_cfunc len;
+        struct knit_cfunc str_to_int;
+        struct knit_cfunc input;
     } funcs; //global functions
 };
 

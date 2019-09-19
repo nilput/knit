@@ -9,6 +9,7 @@ static struct knopts {
     int verbose;
     int testno;
     int interactive;
+    char *infile;
 } knopts = {0};
 static void parse_argv(char *argv[], int argc) {
     for (int i=1; i<argc; i++) {
@@ -17,6 +18,15 @@ static void parse_argv(char *argv[], int argc) {
         }
         else if (strcmp(argv[i], "-i")==0) {
             knopts.interactive = 1;
+        }
+        else if (strncmp(argv[i], "-f", 2)==0) {
+            if (strlen(argv[i]) > 2) {
+                knopts.infile = argv[i] + 2;
+            }   
+            else if (argc > i + 1) {
+                knopts.infile = argv[i+1];
+                i++;
+            }
         }
         else if (argv[i][0] >= '0' && argv[i][0] <= '9') {
             knopts.testno = atoi(argv[i]);
@@ -295,6 +305,10 @@ void generic_file_test(const char *filename) {
     knitx_deinit(&knit);
 }
 
+void exec_file(char *a) {
+    generic_file_test(knopts.infile);
+}
+
 void (*funcs[])(const char *unused) = {
     t1,
     t2,
@@ -313,7 +327,10 @@ int main(int argc, char **argv) {
     parse_argv(argv, argc);
     if (knopts.verbose)
         KNIT_DBG_PRINT = 1;
-    if (knopts.testno == 0 || knopts.interactive) {
+    if (knopts.infile != NULL) {
+        func = exec_file;
+    }
+    else if (knopts.testno == 0 || knopts.interactive) {
         func = interactive;
     }
     else {

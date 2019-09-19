@@ -3293,7 +3293,7 @@ static int knitx_emit_expr_eval(struct knit *knit, struct knit_prs *prs, struct 
         knit_fatal_parse(prs, "g eval currently not implemented");
     }
     else if (expr->exptype == KAX_VAR_REF) {
-        if (nexpected != 1) {
+        if (nexpected != 1 && (nexpected != 0 && eval_ctx == KEVAL_BOOLEAN) && nexpected != KRES_UNKNOWN_KEEP_RET) {
             knit_fatal_parse(prs, "expr eval of a variable cant be discarded, it must return a single value");
         }
 

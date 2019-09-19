@@ -35,6 +35,39 @@ int knitx_list_append(struct knit *kstate) {
     knitx_creturns(kstate, 0);
     return KNIT_OK;
 }
+int knitxr_input(struct knit *kstate) {
+    char buf[256];
+    char *p = fgets(buf, 255, stdin);
+    if (!p)
+        buf[0] = 0;
+
+    struct knit_str *s = NULL;
+    int rv = knitx_str_new_strcpy(kstate, &s, buf);
+    if (s->len > 0 && s->str[s->len-1] == '\n') {
+        s->str[s->len-1] = 0;
+        s->len--;
+    }
+    knitx_stack_rpush(kstate, &kstate->ex.stack, ktobj(s));
+
+    knitx_creturns(kstate, 1);
+    return KNIT_OK;
+}
+int knitxr_str_to_int(struct knit *kstate) {
+    int nargs = knitx_nargs(kstate);
+    if (nargs != 1) { 
+        return knit_error(kstate, KNIT_NARGS, "knitx_str_to_int(self, ...) was called with a wrong number of arguments, expecting 1 argument");
+    }
+    struct knit_obj *stro = NULL;
+    int rv = knitx_get_arg(kstate, 0, &stro); KNIT_CRV(rv);
+    struct knit_str *str = (struct knit_str *)stro;
+    
+    int n = atoi(str->str);
+    struct knit_int *num = NULL;
+    rv = knitx_int_new(kstate, &num, n); KNIT_CRV(rv);
+    rv = knitx_stack_rpush(kstate, &kstate->ex.stack, ktobj(num));
+    knitx_creturns(kstate, 1);
+    return KNIT_OK;
+}
 static int knitxr_print(struct knit *kstate) {
     int nargs = knitx_nargs(kstate);
     struct knit_str tmp;
@@ -99,12 +132,17 @@ const struct knit_builtins kbuiltins = {
         .len = {
             .ktype = KNIT_CFUNC,
             .fptr = knitxr_len,
+        },
+        .str_to_int = {
+            .ktype = KNIT_CFUNC,
+            .fptr = knitxr_str_to_int
+        },
+        .input = {
+            .ktype = KNIT_CFUNC,
+            .fptr = knitxr_input,
         }
     }
 };
-
-
-
 
 static int knitx_register_cfunction(struct knit *kstate, const char *funcname, knit_func_type cfunc) {
     void *p = NULL;
@@ -127,6 +165,8 @@ static int knitx_register_constcfunction(struct knit *kstate, const char *funcna
 
 static int knitxr_register_stdlib(struct knit *kstate) {
     int rv = knitx_register_constcfunction(kstate, "print", &kbuiltins.funcs.print); KNIT_CRV(rv);
+    rv = knitx_register_constcfunction(kstate, "str_to_int", &kbuiltins.funcs.str_to_int); KNIT_CRV(rv);
+    rv = knitx_register_constcfunction(kstate, "input", &kbuiltins.funcs.input); KNIT_CRV(rv);
     rv = knitx_register_constcfunction(kstate, "len", &kbuiltins.funcs.len); KNIT_CRV(rv);
     return KNIT_OK;
 }

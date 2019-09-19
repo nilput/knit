@@ -1,0 +1,11 @@
+print('Enter numbers then 0');
+sum = 0;
+loop = true;
+while (loop) {
+    input_num = str_to_int(input());
+    sum = sum + input_num;
+    if (input_num == 0) {
+        loop = false;
+    }
+}
+print('Sum is ', sum);

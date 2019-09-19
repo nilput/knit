@@ -3,10 +3,11 @@ scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 input_header="$scriptdir/../src/darray.h"
 gen() {
     prefix="$1";
+    prefix_upper="$(echo "$1" | tr a-z A-Z)";
     typename="$2";
     output="$3";
     echo "type: '$typename'"
-    sed "s/_DELEM_TYPE_/${typename}/g ;s/darr/${prefix}/g ; s/DARR/${prefix^^}/g ; " "$input_header"  > "$output" || exit 1;
+    sed "s/_DELEM_TYPE_/${typename}/g ;s/darr/${prefix}/g ; s/DARR/$prefix_upper/g ; " "$input_header"  > "$output" || exit 1;
 }
 if [ $# -lt 2 ]; then
     echo "error, script usage:\
