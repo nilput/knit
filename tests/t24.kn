@@ -1,0 +1,18 @@
+ntimes = function(str, n) {
+    for (i = 0; i < n; i = i+1) {
+        print(str, " ", i);
+    }
+};
+
+print("expected: 'hello n' for n in 0..3"); 
+ntimes("hello", 4);
+
+print("expected a count from 3 to 5 inclusive"); 
+for (i=3; i<=5; i = i+1) {
+    print(i);
+}
+
+print("expected a count from 9 to 3 inclusive"); 
+for (i=9; i>=3; i = i-1) {
+    print(i);
+}

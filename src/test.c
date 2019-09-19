@@ -136,7 +136,7 @@ void t1(const char *unused) {
     struct knit knit;
     knitx_init(&knit, KNIT_POLICY_EXIT);
     knitxr_register_stdlib(&knit);
-    knitx_exec_str(&knit, "g.print('hello world!', 1, 2, 3);"
+    knitx_exec_str(&knit, "g.print('hello world! ', 1, 2, 3);"
                           "g.foo = 'test';"
                           "g.print(g.foo);");
 #ifdef KNIT_DEBUG_PRINT
@@ -181,9 +181,10 @@ void t5(const char *unused) {
     knitx_init(&knit, KNIT_POLICY_EXIT);
     knitxr_register_stdlib(&knit);
     knitx_exec_str(&knit, "g.times_two = function(a) {\n"
-                          "    g.print('testing functions, argument recieved:', a);\n"
+                          "    g.print('testing functions, argument recieved is: ', a);\n"
+                          "    c = a; \n"
                           "    a = a * 2;\n"
-                          "    g.print('argument * 2:', a);\n"
+                          "    g.print(c, ' * 2 = ',  a);\n"
                           "};\n"
                           "g.times_two(3);\n");
     knitx_globals_dump(&knit);

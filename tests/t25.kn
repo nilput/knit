@@ -1,0 +1,14 @@
+n = ( 5 +
+     10 +
+     20 )
+print("expecting 35: ", n)
+
+d = { "a" : 1,
+      "b" : 2,
+      "c" : 3 }
+print("expecting {'a': 1, 'b':2, 'c':3}");
+print(d);
+L = [1,2,3]
+print("expecting [1,2,3]");
+print(L);
+

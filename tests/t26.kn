@@ -1,0 +1,9 @@
+f = function(a) {
+    b = a;
+    a = a * 3;
+    print('b: ', b);
+    print('a: ', a);
+};
+
+print('expecting b == 5, a == 15');
+f(5);
