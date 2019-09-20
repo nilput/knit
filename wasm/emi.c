@@ -7,10 +7,7 @@ struct knit knit;
 
 #define BBUFFSZ 4096
 char buf[BBUFFSZ] = {0};
-int at = 0;
-int waiting = 0;
 int len = 0;
-int semi = 0;
 
 static void idie(const char *msg) {
     fprintf(stderr, "%s\n", msg);
@@ -20,23 +17,11 @@ static void idie(const char *msg) {
 
 void interact() {
     //accumulate into buffer, while trying to be smart about language constructs
-    char *d = buf + at;
-again:
-    for (; at<len; at++) {
-        switch (buf[at]) {
-            case '{': semi = 0; waiting++; break;
-            case '}': semi = 0; waiting--; break;
-            case '(': semi = 0; waiting++; break;
-            case ')': semi = 0; waiting--; break;
-            case '[': semi = 0; waiting++; break;
-            case ']': semi = 0; waiting--; break;
-            case ';': semi++; break;
-            case '\n': printf("#> "); break;
-        }
-        if (!waiting && semi) {
+    int can_exec_to = knit_can_exec(buf, len);
+    if (can_exec_to) {
             {
-                int tmp = buf[at+1];
-                buf[at+1] = 0;
+                int tmp = buf[can_exec_to+1];
+                buf[can_exec_to+1] = 0;
 //#define DBG
 #ifdef DBG
                 printf("buff:\n'''%s'''\n", buf);
@@ -44,16 +29,12 @@ again:
                 fflush(stdout);
 #endif
                 knitx_exec_str(&knit, buf);
-                buf[at+1] = tmp;
+                buf[can_exec_to+1] = tmp;
                 fflush(stdout);
             }
-            len = len - at - 1;
-            memmove(buf, buf + at + 1, len); 
+            len = len - can_exec_to;
+            memmove(buf, buf + can_exec_to, len); 
             buf[len] = 0;
-            at = 0;
-            semi = 0;
-            goto again;
-        }
     }
 }
 

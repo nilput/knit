@@ -70,14 +70,6 @@ void interactive(const char *n) {
 
 #define BBUFFSZ 4096
     char buf[BBUFFSZ] = {0};
-    enum foci {
-        CURLY,
-        PAREN,
-        BRACKET,
-    };
-    int focus[3] = {0, 0, 0};
-    int waiting = 0;
-    int at = 0;
     int len = 0;
 
 #ifdef KNIT_HAVE_ISATTY
@@ -87,8 +79,7 @@ void interactive(const char *n) {
 #endif
 
     if (istty) {
-        printf("Knit Interactive mode\n"
-                "you can also execute: ./prog [test num] to run tests\n");
+        printf("Knit Interactive mode v0.1.0\n");
     }
 
     while (1) {
@@ -96,41 +87,30 @@ void interactive(const char *n) {
         if (canread <= 1)
             idie("input buffer full");
         //accumulate into buffer, while trying to be smart about language constructs
-        char *d = buf + at;
+        char *d = buf + len;
         if (istty) {
             printf("#> ");
         }
-        char *ln = fgets(d, canread, stdin);
-        if (!ln)
+        char *line = fgets(d, canread, stdin);
+        if (!line) {
+            if (len) {
+                knitx_exec_str(&knit, buf);
+            }
             break;
+        }
         int read_bytes = strlen(d); 
         len += read_bytes;
-        int semi = 0;
-again:
-        for (; at<len; at++) {
-            switch (buf[at]) {
-                case '{': semi = 0; focus[CURLY]++;   waiting++; break;
-                case '}': semi = 0; focus[CURLY]--;   waiting--; break;
-                case '(': semi = 0; focus[PAREN]++;   waiting++; break;
-                case ')': semi = 0; focus[PAREN]--;   waiting--; break;
-                case '[': semi = 0; focus[BRACKET]++; waiting++; break;
-                case ']': semi = 0; focus[BRACKET]--; waiting--; break;
-                case ';': semi++; break;
+        int can_exec_to = knit_can_exec(buf, len);
+        if (can_exec_to) {
+            {
+                int tmp = buf[can_exec_to];
+                buf[can_exec_to] = 0;
+                knitx_exec_str(&knit, buf);
+                buf[can_exec_to] = tmp;
             }
-            if (!waiting && semi) {
-                {
-                    int tmp = buf[at+1];
-                    buf[at+1] = 0;
-                    knitx_exec_str(&knit, buf);
-                    buf[at+1] = tmp;
-                }
-                len = len - at - 1;
-                memmove(buf, buf + at + 1, len); 
-                buf[len] = 0;
-                at = 0;
-                semi = 0;
-                goto again;
-            }
+            len = len - can_exec_to;
+            memmove(buf, buf + can_exec_to, len); 
+            buf[len] = 0;
         }
     }
 #undef BBUFFSZ 

@@ -1835,6 +1835,7 @@ static int knitx_lexer_adv(struct knit *knit, struct knit_lex *lxr) {
     return KNIT_OK;
 }
 
+
 static int knitx_lexer_peek_cur(struct knit *knit, struct knit_lex *lxr, struct knit_tok ** tokp) {
     int rv = KNIT_OK;
     *tokp = NULL;
@@ -4501,6 +4502,53 @@ static int knitx_exec_str(struct knit *knit, const char *program) {
     knitx_prs_deinit(knit, &prs);
 
     return KNIT_OK; //dummy
+}
+
+//how many chars to skip an escape seq
+static int knit_strliteral_skip_len(const char *buf, int len) {
+    if (buf[0] == '\\') 
+        return 2;
+    return 1; //no escape
+}
+
+//in repl, this is used to query whether the thing can be executed
+//return value: 0 -> can't
+//an index to which we seem able to execute, the rest must be saved by the caller and not passed to be executed
+static int knit_can_exec(const char *buf, int len) {
+    int pbcd = 0;
+    //TODO this doesnt work with quoted strings
+    int maxto = 0;
+    int instr = 0;
+    int i =0;
+    for (i=0; i<len; i++) {
+        if (buf[i] == '\'' || buf[i] == '"') {
+           instr = !instr;
+        }
+        else {
+            if (instr) {
+                int sl = knit_strliteral_skip_len(buf+i, len-i);
+                i += (sl - 1); //- 1 because the loop adds 1
+            }
+            else {
+                switch(buf[i]) {
+                    case '[': pbcd++; break;
+                    case ']': pbcd--; break;
+                    case '{': pbcd++; break;
+                    case '}': pbcd--; break;
+                    case '(': pbcd++; break;
+                    case ')': pbcd--; break;
+                    case ' ': case '\t': case '\v': case '\f': case '\r': continue /*the for loop*/;
+                }
+            }
+            if (pbcd == 0 && buf[i] == '\n') {
+                maxto = i + 1;
+            }
+        }
+    }
+    if (pbcd == 0) {
+        maxto = len;
+    }
+    return maxto;
 }
 
 
