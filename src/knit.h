@@ -10,24 +10,24 @@
 
 
 /*hashtable related functions*/
-    static int vars_hasht_key_eq_cmp(vars_hasht_key_type *key_1, vars_hasht_key_type *key_2) {
+    static int knit_vars_hasht_key_eq_cmp(knit_vars_hasht_key_type *key_1, knit_vars_hasht_key_type *key_2) {
         struct knit_str *str1 = key_1;
         struct knit_str *str2 = key_2;
         if (str1->len != str2->len)
             return 1;
         return memcmp(str1->str, str2->str, str1->len); //0 if eq
     }
-    static size_t vars_hasht_hash(vars_hasht_key_type *key) {
+    static size_t knit_vars_hasht_hash(knit_vars_hasht_key_type *key) {
         struct knit_str *str = key;
         return SuperFastHash(str->str, str->len);
     }
-    static int mem_hasht_key_eq_cmp(mem_hasht_key_type *key_1, mem_hasht_key_type *key_2) {
+    static int knit_mem_hasht_key_eq_cmp(knit_mem_hasht_key_type *key_1, knit_mem_hasht_key_type *key_2) {
         //we are comparing two void pointers
         if (*key_1 == *key_2)
             return 0;  //eq
         return 1;
     }
-    static size_t mem_hasht_hash(mem_hasht_key_type *key) {
+    static size_t knit_mem_hasht_hash(knit_mem_hasht_key_type *key) {
         return (uintptr_t) *key; //casting a void ptr to an integer
     }
     //fwd
@@ -206,17 +206,17 @@ static int knitx_obj_eq(struct knit *knit, struct knit_obj *obj_a, struct knit_o
 //      make sure error reporting works in low memory conditions
 static int knitx_register_new_ptr_(struct knit *knit, void *m) {
     unsigned char v = 0;
-    int rv = mem_hasht_insert(&knit->mem_ht, &m, &v);
-    if (rv != MEM_HASHT_OK) {
-        return knit_error(knit, KNIT_RUNTIME_ERR, "knitx_register_new_ptr_(): mem_hasht_insert() failed");
+    int rv = knit_mem_hasht_insert(&knit->mem_ht, &m, &v);
+    if (rv != KNIT_MEM_HASHT_OK) {
+        return knit_error(knit, KNIT_RUNTIME_ERR, "knitx_register_new_ptr_(): knit_mem_hasht_insert() failed");
     }
     return KNIT_OK;
 }
 static int knitx_unregister_ptr_(struct knit *knit, void *m) {
     unsigned char v = 0;
-    int rv = mem_hasht_remove(&knit->mem_ht, &m);
-    if (rv != MEM_HASHT_OK) {
-        if (rv == MEM_HASHT_NOT_FOUND) {
+    int rv = knit_mem_hasht_remove(&knit->mem_ht, &m);
+    if (rv != KNIT_MEM_HASHT_OK) {
+        if (rv == KNIT_MEM_HASHT_NOT_FOUND) {
             return knit_error(knit, KNIT_RUNTIME_ERR, "knitx_remove_ptr_(): key not found, trying to unregister an unregistered pointer");
         }
         return knit_error(knit, KNIT_RUNTIME_ERR, "knitx_remove_ptr_(): hasht_find() failed");
@@ -706,13 +706,13 @@ static int knitx_getvar_(struct knit *knit, const char *varname, struct knit_obj
         return rv;
     }
     struct knit_exec_state *exs = &knit->ex;
-    struct vars_hasht_iter iter;
-    rv = vars_hasht_find(&exs->global_ht, &key, &iter);
-    if (rv != VARS_HASHT_OK) {
-        if (rv == VARS_HASHT_NOT_FOUND)
+    struct knit_vars_hasht_iter iter;
+    rv = knit_vars_hasht_find(&exs->global_ht, &key, &iter);
+    if (rv != KNIT_VARS_HASHT_OK) {
+        if (rv == KNIT_VARS_HASHT_NOT_FOUND)
             return knit_error(knit, KNIT_NOT_FOUND, "variable '%s' is undefined", varname);
         else 
-            return knit_error(knit, KNIT_RUNTIME_ERR, "an error occured while trying to lookup a variable in vars_hasht_find()");
+            return knit_error(knit, KNIT_RUNTIME_ERR, "an error occured while trying to lookup a variable in knit_vars_hasht_find()");
     }
     *objp = iter.pair->value;
     return KNIT_OK;
@@ -748,11 +748,11 @@ static int knitx_vardump(struct knit *knit, const char *varname) {
 }
 
 static int knitx_globals_dump(struct knit *knit) {
-    struct vars_hasht *ht = &knit->ex.global_ht;
-    struct vars_hasht_iter iter;
-    int rv = vars_hasht_begin_iterator(ht, &iter);
+    struct knit_vars_hasht *ht = &knit->ex.global_ht;
+    struct knit_vars_hasht_iter iter;
+    int rv = knit_vars_hasht_begin_iterator(ht, &iter);
     fprintf(stderr, "Global variables:\n");
-    for (; vars_hasht_iter_check(&iter); vars_hasht_iter_next(ht, &iter)) {
+    for (; knit_vars_hasht_iter_check(&iter); knit_vars_hasht_iter_next(ht, &iter)) {
         if (iter.pair->key.str) {
             fprintf(stderr, "\t%s", iter.pair->key.str);
         }
@@ -872,8 +872,8 @@ static int knitx_set_str(struct knit *knit, const char *key, const char *value) 
     //ownership of key is transferred to the vars hashtable
     struct knit_obj *objp = (struct knit_obj *) val_strp; //defined operation?
     struct knit_exec_state *exs = &knit->ex;
-    rv = vars_hasht_insert(&exs->global_ht, &key_str, &objp);
-    if (rv != VARS_HASHT_OK) {
+    rv = knit_vars_hasht_insert(&exs->global_ht, &key_str, &objp);
+    if (rv != KNIT_VARS_HASHT_OK) {
         rv = knit_error(knit, KNIT_RUNTIME_ERR, "knitx_set_str(): inserting key into vars hashtable failed");
         goto cleanup_val;
     }
@@ -1495,8 +1495,8 @@ static int knitx_stack_pop_frame(struct knit *knit, struct knit_stack *stack) {
 }
 
 static int knitx_exec_state_init(struct knit *knit, struct knit_exec_state *exs) {
-    int rv = vars_hasht_init(&exs->global_ht, 32);
-    if (rv != VARS_HASHT_OK) {
+    int rv = knit_vars_hasht_init(&exs->global_ht, 32);
+    if (rv != KNIT_VARS_HASHT_OK) {
         return knit_error(knit, KNIT_RUNTIME_ERR, "couldn't initialize vars hashtable");;
     }
     rv = knitx_stack_init(knit, &exs->stack);
@@ -1505,12 +1505,12 @@ static int knitx_exec_state_init(struct knit *knit, struct knit_exec_state *exs)
     return KNIT_OK;
 
 cleanup_vars_ht:
-    vars_hasht_deinit(&exs->global_ht);
+    knit_vars_hasht_deinit(&exs->global_ht);
     return rv;
 }
 
 static int knitx_exec_state_deinit(struct knit *knit, struct knit_exec_state *exs) {
-    vars_hasht_deinit(&exs->global_ht);
+    knit_vars_hasht_deinit(&exs->global_ht);
     int rv = knitx_stack_deinit(knit, &exs->stack);
     return rv;
 }
@@ -4101,13 +4101,13 @@ static int knitx_op_exec_test_binop(struct knit *knit, struct knit_stack *stack,
 //pushes it to stack
 static int knitx_do_global_load(struct knit *knit, struct knit_str *name) {
     struct knit_exec_state *exs = &knit->ex;
-    struct vars_hasht_iter iter;
-    int rv = vars_hasht_find(&exs->global_ht, name, &iter);
-    if (rv != VARS_HASHT_OK) {
-        if (rv == VARS_HASHT_NOT_FOUND)
+    struct knit_vars_hasht_iter iter;
+    int rv = knit_vars_hasht_find(&exs->global_ht, name, &iter);
+    if (rv != KNIT_VARS_HASHT_OK) {
+        if (rv == KNIT_VARS_HASHT_NOT_FOUND)
             return knit_error(knit, KNIT_NOT_FOUND, "variable '%s' is undefined", name->str);
         else 
-            return knit_error(knit, KNIT_RUNTIME_ERR, "an error occured while trying to lookup a variable in vars_hasht_find()");
+            return knit_error(knit, KNIT_RUNTIME_ERR, "an error occured while trying to lookup a variable in knit_vars_hasht_find()");
     }
     rv = knitx_stack_rpush(knit, &exs->stack, iter.pair->value);
     if (rv != KNIT_OK)
@@ -4117,19 +4117,19 @@ static int knitx_do_global_load(struct knit *knit, struct knit_str *name) {
 //doesn't own name
 static int knitx_do_global_assign(struct knit *knit, struct knit_str *name, struct knit_obj *rhs) {
     struct knit_exec_state *exs = &knit->ex;
-    struct vars_hasht_iter iter;
-    int rv = vars_hasht_find(&exs->global_ht, name, &iter);
-    if (rv == VARS_HASHT_OK) {
+    struct knit_vars_hasht_iter iter;
+    int rv = knit_vars_hasht_find(&exs->global_ht, name, &iter);
+    if (rv == KNIT_VARS_HASHT_OK) {
         //todo destroy previous value 
         iter.pair->value = rhs;
     }
-    else if (rv == VARS_HASHT_NOT_FOUND) {
+    else if (rv == KNIT_VARS_HASHT_NOT_FOUND) {
         struct knit_str *new_str;
         rv = knitx_str_new_strcpy(knit, &new_str, name->str); KNIT_CRV(rv);
-        rv = vars_hasht_insert(&exs->global_ht, name, &rhs);
+        rv = knit_vars_hasht_insert(&exs->global_ht, name, &rhs);
     }
 
-    if (rv != VARS_HASHT_OK) {
+    if (rv != KNIT_VARS_HASHT_OK) {
         return knit_error(knit, KNIT_RUNTIME_ERR, "knitx_do_global_assign(): assignment failed");
     }
     return KNIT_OK;
@@ -4563,9 +4563,9 @@ static int knitx_init(struct knit *knit, int opts) {
     knit->err_msg = NULL;
     knit->err = KNIT_OK;
 
-    rv = mem_hasht_init(&knit->mem_ht, 256);
+    rv = knit_mem_hasht_init(&knit->mem_ht, 256);
 
-    if (rv != MEM_HASHT_OK) {
+    if (rv != KNIT_MEM_HASHT_OK) {
         rv = knit_error(knit, KNIT_RUNTIME_ERR, "couldn't initialize mem hashtable");
         goto end;
     }
@@ -4576,19 +4576,19 @@ static int knitx_init(struct knit *knit, int opts) {
 
     return KNIT_OK;
 cleanup_mem_ht:
-    mem_hasht_deinit(&knit->mem_ht);
+    knit_mem_hasht_deinit(&knit->mem_ht);
 end:
     return rv;
 }
 static int knitx_deinit(struct knit *knit) {
-    struct mem_hasht_iter iter;
-    int rv = mem_hasht_begin_iterator(&knit->mem_ht, &iter);
-    knit_assert_h(rv == MEM_HASHT_OK, "knitx_deinit(): couldnt iterate memory set");
-    for (; mem_hasht_iter_check(&iter);  mem_hasht_iter_next(&knit->mem_ht, &iter)) {
+    struct knit_mem_hasht_iter iter;
+    int rv = knit_mem_hasht_begin_iterator(&knit->mem_ht, &iter);
+    knit_assert_h(rv == KNIT_MEM_HASHT_OK, "knitx_deinit(): couldnt iterate memory set");
+    for (; knit_mem_hasht_iter_check(&iter);  knit_mem_hasht_iter_next(&knit->mem_ht, &iter)) {
         void *p = iter.pair->key;
         knitx_rfree(knit, p);
     }
-    mem_hasht_deinit(&knit->mem_ht);
+    knit_mem_hasht_deinit(&knit->mem_ht);
     return KNIT_OK;
 }
 
