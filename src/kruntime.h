@@ -111,27 +111,8 @@ static int knitxr_len(struct knit *kstate) {
     return KNIT_OK;
 }
 static int knitxr_gcwalk(struct knit *kstate) {
-    int nargs = knitx_nargs(kstate);
-    if (nargs != 1) { 
-        return knit_error(kstate, KNIT_NARGS, "knitxr_len(obj) was called with a wrong number of arguments, expecting 1 argument");
-    }
-    struct knit_obj *obj = NULL;
-    int rv = knitx_get_arg(kstate, 0, &obj); KNIT_CRV(rv);
-    struct knit_int *num = NULL;
-    rv = knitx_int_new(kstate, &num, 0); KNIT_CRV(rv);
-
-    if (obj->u.ktype == KNIT_LIST) {
-        num->value = obj->u.list.len;
-    }
-    else if (obj->u.ktype == KNIT_STR) {
-        num->value = obj->u.str.len;
-    }
-    else {
-        return knit_error(kstate, KNIT_INVALID_TYPE_ERR, "knitx_len(obj) was called with an unexpected type, expecting str or list");
-    }
-
-    knitx_stack_rpush(kstate, &kstate->ex.stack, ktobj(num));
-    knitx_creturns(kstate, 1);
+    int r = knitgc_iter_workingset(kstate);
+    knitx_creturns(kstate, 0);
     return KNIT_OK;
 }
 
@@ -164,11 +145,11 @@ const struct knit_builtins kbuiltins = {
         .input = {
             .ktype = KNIT_CFUNC,
             .fptr = knitxr_input,
-        }
+        },
         .gcwalk = {
             .ktype = KNIT_CFUNC,
             .fptr = knitxr_gcwalk,
-        }
+        },
     }
 };
 
