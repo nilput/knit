@@ -112,26 +112,24 @@ static int knitxr_len(struct knit *kstate) {
 }
 static int knitxr_gcwalk(struct knit *kstate) {
     int nargs = knitx_nargs(kstate);
-    if (nargs != 1) { 
-        return knit_error(kstate, KNIT_NARGS, "knitxr_len(obj) was called with a wrong number of arguments, expecting 1 argument");
+    if (nargs != 0) { 
+        return knit_error(kstate, KNIT_NARGS, "knitxr_walk() was called with a wrong number of arguments, expecting 0 arguments");
     }
-    struct knit_obj *obj = NULL;
-    int rv = knitx_get_arg(kstate, 0, &obj); KNIT_CRV(rv);
-    struct knit_int *num = NULL;
-    rv = knitx_int_new(kstate, &num, 0); KNIT_CRV(rv);
+    knitgc_walk_workingset(kstate);
 
-    if (obj->u.ktype == KNIT_LIST) {
-        num->value = obj->u.list.len;
+    knitx_creturns(kstate, 0);
+    return KNIT_OK;
+}
+static int knitxr_meminfo(struct knit *kstate) {
+    int nargs = knitx_nargs(kstate);
+    if (nargs != 0) { 
+        return knit_error(kstate, KNIT_NARGS, "knitxr_meminfo(obj) was called with a wrong number of arguments, expecting 0 arguments");
     }
-    else if (obj->u.ktype == KNIT_STR) {
-        num->value = obj->u.str.len;
-    }
-    else {
-        return knit_error(kstate, KNIT_INVALID_TYPE_ERR, "knitx_len(obj) was called with an unexpected type, expecting str or list");
-    }
-
-    knitx_stack_rpush(kstate, &kstate->ex.stack, ktobj(num));
-    knitx_creturns(kstate, 1);
+    printf("hey\n");
+    #ifdef KNIT_MEM_STATS
+        knit_mem_stats_dump(&kstate->mstats);
+    #endif
+    knitx_creturns(kstate, 0);
     return KNIT_OK;
 }
 
@@ -164,10 +162,14 @@ const struct knit_builtins kbuiltins = {
         .input = {
             .ktype = KNIT_CFUNC,
             .fptr = knitxr_input,
-        }
+        },
         .gcwalk = {
             .ktype = KNIT_CFUNC,
             .fptr = knitxr_gcwalk,
+        },
+        .meminfo = {
+            .ktype = KNIT_CFUNC,
+            .fptr = knitxr_meminfo,
         }
     }
 };
@@ -197,6 +199,7 @@ static int knitxr_register_stdlib(struct knit *kstate) {
     rv = knitx_register_constcfunction(kstate, "input", &kbuiltins.funcs.input); KNIT_CRV(rv);
     rv = knitx_register_constcfunction(kstate, "len", &kbuiltins.funcs.len); KNIT_CRV(rv);
     rv = knitx_register_constcfunction(kstate, "gcwalk", &kbuiltins.funcs.gcwalk); KNIT_CRV(rv);
+    rv = knitx_register_constcfunction(kstate, "meminfo", &kbuiltins.funcs.meminfo); KNIT_CRV(rv);
     return KNIT_OK;
 }
 

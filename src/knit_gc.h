@@ -2,7 +2,6 @@
 #define KNIT_GC
 
 #include "kdata.h" //data structures
-#include "knit.h"
 
 
 static int knitgc_walk_object(struct knit *knit, struct knit_obj *obj) {
@@ -31,14 +30,14 @@ static int knitgc_walk_object(struct knit *knit, struct knit_obj *obj) {
     }
 }
 
-static int knitgc_get_bitset_buffer(struct knit *knit, struct knit *) {
+static int knitgc_get_bitset_buffer(struct knit *knit) {
 
 }
 static int knitgc_release_bitset_buffer(struct knit *knit) {
     
 }
 
-static int knitgc_iter_workingset(struct knit *knit) {
+static int knitgc_walk_workingset(struct knit *knit) {
     struct knit_exec_state *exec_state = &knit->ex;
     struct knit_stack *stack = &knit->ex.stack;
     struct knit_vars_hasht *vars_ht = &knit->ex.global_ht;

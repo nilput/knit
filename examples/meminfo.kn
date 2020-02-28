@@ -1,0 +1,19 @@
+alloc_ints = function(start, end) {
+    lis = []
+    for (i=start; i<end; i = i + 1) {
+        lis.append(i);
+    }
+    return lis
+}
+
+main = function() {
+    gcwalk();
+    meminfo();
+    for (i=0; i<10; i = i + 1) {
+        alloc_ints(0, 100);
+        meminfo();
+    }
+    meminfo();
+}
+main()
+gcwalk();

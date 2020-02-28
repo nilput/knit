@@ -1,3 +1,5 @@
+#ifndef KNIT_H
+#define KNIT_H
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -200,70 +202,99 @@ static int knitx_obj_eq(struct knit *knit, struct knit_obj *obj_a, struct knit_o
     return 0;
 }
 
+#ifdef KNIT_MEM_STATS
+#define KNIT_MAX_ALIGNMENT_REQ 8
+#define KNIT_WRAPPED_DATA_SZ  sizeof(size_t)
+#define KNIT_WRAPPED_SZ (KNIT_WRAPPED_DATA_SZ + (KNIT_WRAPPED_DATA_SZ % KNIT_MAX_ALIGNMENT_REQ))
 
-
-//TODO: make sure no leaks occur during failures of these functions
-//      make sure error reporting works in low memory conditions
-static int knitx_register_new_ptr_(struct knit *knit, void *m) {
-    unsigned char v = 0;
-    int rv = knit_mem_hasht_insert(&knit->mem_ht, &m, &v);
-    if (rv != KNIT_MEM_HASHT_OK) {
-        return knit_error(knit, KNIT_RUNTIME_ERR, "knitx_register_new_ptr_(): knit_mem_hasht_insert() failed");
+static size_t ptr_wrap_needed_sz(size_t sz) {
+    return sz + KNIT_WRAPPED_SZ;
+}
+static void ptr_wrap_szt_store(void *up, size_t n) {
+    unsigned char *c = up;
+    for (unsigned i=0; i<sizeof(size_t); i++) {
+        c[i] = n & 0xFF;
+        n >>= 8;
+    } 
+}
+static size_t ptr_wrap_szt_get(void *up) {
+    unsigned char *c = up;
+    size_t n = 0;
+    for (int i=sizeof(size_t) - 1; i >= 0; i--) {
+        n <<= 8;
+        n |= c[i];
+    } 
+    return n;
+}
+static void *ptr_wrap(void *p, size_t sz) {
+    ptr_wrap_szt_store(p, sz);   
+    return ((char *) p) + KNIT_WRAPPED_SZ;
+}
+static void *ptr_unwrap(void *p) {
+    return ((char *) p) - KNIT_WRAPPED_SZ;
+}
+static size_t ptr_wrap_get_sz(void *p) {
+    if (!p) {
+        return 0;
     }
-    return KNIT_OK;
+    return ptr_wrap_szt_get(ptr_unwrap(p));
 }
-static int knitx_unregister_ptr_(struct knit *knit, void *m) {
-    unsigned char v = 0;
-    int rv = knit_mem_hasht_remove(&knit->mem_ht, &m);
-    if (rv != KNIT_MEM_HASHT_OK) {
-        if (rv == KNIT_MEM_HASHT_NOT_FOUND) {
-            return knit_error(knit, KNIT_RUNTIME_ERR, "knitx_remove_ptr_(): key not found, trying to unregister an unregistered pointer");
-        }
-        return knit_error(knit, KNIT_RUNTIME_ERR, "knitx_remove_ptr_(): hasht_find() failed");
-    }
-    return KNIT_OK;
+#else
+static size_t ptr_wrap_needed_sz(size_t sz) {
+    return sz;
 }
-static int knitx_update_ptr_(struct knit *knit, void *old_m, void *new_m) {
-    if (old_m == new_m)
-        return KNIT_OK;
-    int rv = KNIT_OK;
-    if (old_m != NULL)
-        rv = knitx_unregister_ptr_(knit, old_m);
-    if (rv != KNIT_OK)
-        return rv;
-    if (new_m == NULL)
-        return KNIT_OK;
-    return knitx_register_new_ptr_(knit, new_m);
+static void *ptr_wrap(void *p, size_t sz) {
+    return p;
 }
+static void *ptr_unwrap(void *p) {
+    return p;
+}
+static size_t ptr_wrap_get_sz(void *p) {
+    return 0;
+}
+#endif
 
-//untracked allocation
+
 static int knitx_rfree(struct knit *knit, void *p) {
     (void) knit;
-    free(p);
+    KMEMSTAT_FREE(knit, ptr_wrap_get_sz(p));
+    free(ptr_unwrap(p));
     return KNIT_OK;
 }
 static int knitx_rmalloc(struct knit *knit, size_t sz, void **m) {
+    KMEMSTAT_ALLOC(knit, sz);
     knit_assert_h(sz, "knit_malloc(): 0 size passed");
-    void *p = malloc(sz);
+    void *p = malloc(ptr_wrap_needed_sz(sz));
     *m = NULL;
     if (!p)
         return knit_error(knit, KNIT_NOMEM, "knitx_malloc(): malloc() returned NULL");
-    *m = p;
+    *m = ptr_wrap(p, sz);
     return KNIT_OK;
 }
 static int knitx_rrealloc(struct knit *knit, void *p, size_t sz, void **m) {
+    KMEMSTAT_REALLOC(knit, ptr_wrap_get_sz(p), sz);
     if (!sz) {
         int rv = knitx_rfree(knit, p);
         *m = NULL;
         return rv;
     }
-    void *np = realloc(p, sz);
+    void *np = realloc(ptr_unwrap(p), ptr_wrap_needed_sz(sz));
     if (!np) {
         return knit_error(knit, KNIT_NOMEM, "knitx_realloc(): realloc() returned NULL");
     }
-    *m = np;
+    *m = ptr_wrap(np, sz);
     return KNIT_OK;
 }
+static int knitx_tmalloc(struct knit *knit, size_t sz, void **m) {
+    return knitx_rmalloc(knit, sz, m);
+}
+static int knitx_tfree(struct knit *knit, void *p) {
+    return knitx_rfree(knit, p);
+}
+static int knitx_trealloc(struct knit *knit, void *p, size_t sz, void **m) {
+    return knitx_rrealloc(knit, p, sz, m);
+}
+
 //assumes the length of both was checked and it was equal!
 static int knit_strl_eq(const char *a, const char *b, size_t len) {
     return memcmp(a, b, len) == 0;
@@ -281,35 +312,6 @@ static int knitx_rstrdup(struct knit *knit, const char *s, char **out_s) {
     memcpy(*out_s, s, len);
     (*out_s)[len] = 0;
     return KNIT_OK;
-}
-
-//tracked allocation
-static int knitx_tmalloc(struct knit *knit, size_t sz, void **m) {
-    int rv = knitx_rmalloc(knit, sz, m);
-    if (rv != KNIT_OK) {
-        return rv;
-    }
-    rv = knitx_register_new_ptr_(knit, *m);
-    if (rv != KNIT_OK) {
-        knitx_rfree(knit, *m);
-        return rv;
-    }
-    return KNIT_OK;
-}
-static int knitx_tfree(struct knit *knit, void *p) {
-    if (!p)
-        return KNIT_OK;
-    int rv = knitx_unregister_ptr_(knit, p);
-    knitx_rfree(knit, p);
-    return rv;
-}
-static int knitx_trealloc(struct knit *knit, void *p, size_t sz, void **m) {
-    int rv = knitx_rrealloc(knit, p, sz, m);
-    if (rv != KNIT_OK) {
-        return rv;
-    }
-    rv = knitx_update_ptr_(knit, p, *m);
-    return rv;
 }
 
 
@@ -4558,39 +4560,27 @@ static int knitx_init(struct knit *knit, int opts) {
         knit_set_error_policy(knit, KNIT_POLICY_CONTINUE);
     else 
         knit_set_error_policy(knit, KNIT_POLICY_EXIT);
+#ifdef KNIT_MEM_STATS
+    knit_mem_stats_init(&knit->mstats);
+#endif
 
     knit->ex.nresults = 0;
     knit->err_msg = NULL;
     knit->err = KNIT_OK;
 
-    rv = knit_mem_hasht_init(&knit->mem_ht, 256);
-
-    if (rv != KNIT_MEM_HASHT_OK) {
-        rv = knit_error(knit, KNIT_RUNTIME_ERR, "couldn't initialize mem hashtable");
-        goto end;
-    }
 
     rv = knitx_exec_state_init(knit, &knit->ex);
     if (rv != KNIT_OK)
-        goto cleanup_mem_ht;
+        goto end;
 
     return KNIT_OK;
-cleanup_mem_ht:
-    knit_mem_hasht_deinit(&knit->mem_ht);
 end:
     return rv;
 }
 static int knitx_deinit(struct knit *knit) {
-    struct knit_mem_hasht_iter iter;
-    int rv = knit_mem_hasht_begin_iterator(&knit->mem_ht, &iter);
-    knit_assert_h(rv == KNIT_MEM_HASHT_OK, "knitx_deinit(): couldnt iterate memory set");
-    for (; knit_mem_hasht_iter_check(&iter);  knit_mem_hasht_iter_next(&knit->mem_ht, &iter)) {
-        void *p = iter.pair->key;
-        knitx_rfree(knit, p);
-    }
-    knit_mem_hasht_deinit(&knit->mem_ht);
     return KNIT_OK;
 }
 
 
 #include "kruntime.h" //runtime functions
+#endif

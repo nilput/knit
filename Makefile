@@ -2,7 +2,7 @@
 .PHONY: all clean
 GEN :=        src/knit_vars_hasht.h src/knit_mem_hasht.h src/kobj_hasht.h src/tok_darray.h src/insns_darray.h
 GEN := $(GEN) src/knit_objp_darray.h src/knit_frame_darray.h src/knit_expr_darray.h src/knit_stmt_darray.h src/knit_varname_darray.h 
-all: test $(GEN)
+all: knit test $(GEN)
 HASHT_INC := -I hasht/src/ -I hasht/third_party/
 
 src/knit_vars_hasht.h: hasht/src/hasht.h
@@ -27,13 +27,16 @@ src/knit_varname_darray.h: src/darray/src/darray.h
 	./src/darray/scripts/gen_darray.sh knit_varname_darray 'struct knit_varname' $@
 CFLAGS := -Wall -Wextra  -Wno-unused-function -Wno-unused-variable -Wno-unused-parameter
 debug: CFLAGS := $(CFLAGS) -g3 -O0 -D KNIT_DEBUG_PRINT
-debug: test
+debug: all
 opt: CFLAGS := $(CFLAGS) -O2
-opt: test
+opt: all
 test: src/test.c $(GEN) src/knit.h
+	$(CC) $(CFLAGS) $(HASHT_INC) $< -o $@
+knit: src/main.c $(GEN) src/knit.h
 	$(CC) $(CFLAGS) $(HASHT_INC) $< -o $@
 src/knit.h: src/kdata.h src/kruntime.h
 clean:
 	rm -f $(GEN) 2>/dev/null
 	rm -f test   2>/dev/null
+	rm -f knit   2>/dev/null
 

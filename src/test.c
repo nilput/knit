@@ -285,7 +285,7 @@ void generic_file_test(const char *filename) {
     knitx_deinit(&knit);
 }
 
-void exec_file(char *a) {
+void exec_file(const char *a) {
     generic_file_test(knopts.infile);
 }
 
