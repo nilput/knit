@@ -11,7 +11,7 @@ int knitx_str_strip(struct knit *kstate) {
     }
 
     struct knit_str *dupped = NULL;
-    rv = knitx_str_new_copy(kstate, &dupped, (struct knit_str *) self); KNIT_CRV(rv);
+    rv = knitx_str_new_copy_gcobj(kstate, &dupped, (struct knit_str *) self); KNIT_CRV(rv);
     rv = knitx_str_mutstrip(kstate, dupped, " \n\t\f", KNITX_STRIP_LEFT | KNITX_STRIP_RIGHT); KNIT_CRV(rv);
     knitx_stack_rpush(kstate, &kstate->ex.stack, ktobj(dupped));
 
@@ -43,7 +43,7 @@ int knitxr_input(struct knit *kstate) {
         buf[0] = 0;
 
     struct knit_str *s = NULL;
-    int rv = knitx_str_new_strcpy(kstate, &s, buf);
+    int rv = knitx_str_new_strcpy_gcobj(kstate, &s, buf);
     if (s->len > 0 && s->str[s->len-1] == '\n') {
         s->str[s->len-1] = 0;
         s->len--;
@@ -64,7 +64,7 @@ int knitxr_str_to_int(struct knit *kstate) {
     
     int n = atoi(str->str);
     struct knit_int *num = NULL;
-    rv = knitx_int_new(kstate, &num, n); KNIT_CRV(rv);
+    rv = knitx_int_new_gcobj(kstate, &num, n); KNIT_CRV(rv);
     rv = knitx_stack_rpush(kstate, &kstate->ex.stack, ktobj(num));
     knitx_creturns(kstate, 1);
     return KNIT_OK;
@@ -94,7 +94,7 @@ static int knitxr_len(struct knit *kstate) {
     struct knit_obj *obj = NULL;
     int rv = knitx_get_arg(kstate, 0, &obj); KNIT_CRV(rv);
     struct knit_int *num = NULL;
-    rv = knitx_int_new(kstate, &num, 0); KNIT_CRV(rv);
+    rv = knitx_int_new_gcobj(kstate, &num, 0); KNIT_CRV(rv);
 
     if (obj->u.ktype == KNIT_LIST) {
         num->value = obj->u.list.len;
@@ -115,7 +115,7 @@ static int knitxr_gcwalk(struct knit *kstate) {
     if (nargs != 0) { 
         return knit_error(kstate, KNIT_NARGS, "knitxr_walk() was called with a wrong number of arguments, expecting 0 arguments");
     }
-    knitgc_walk_workingset(kstate);
+    knit_gc_cycle(kstate);
 
     knitx_creturns(kstate, 0);
     return KNIT_OK;
@@ -127,7 +127,7 @@ static int knitxr_meminfo(struct knit *kstate) {
     }
     printf("hey\n");
     #ifdef KNIT_MEM_STATS
-        knit_mem_stats_dump(&kstate->mstats);
+        knit_mem_stats_dump(kstate, &kstate->mstats);
     #endif
     knitx_creturns(kstate, 0);
     return KNIT_OK;

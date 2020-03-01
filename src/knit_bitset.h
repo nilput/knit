@@ -1,9 +1,13 @@
+#ifndef KNIT_BITSET_H
+#define KNIT_BITSET_H
 #include <limits.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "kdata.h"
+#include "knit_util.h"
+#include "knit_bitset_data.h"
 
 #if CHAR_BIT != 8
     #error "only supports 8 bit byte platforms"
@@ -12,11 +16,6 @@
 #define BITS_IN_UNSIGNED (sizeof(unsigned) * 8)
 #define UNSIGNED_ALL_BITS_ON UINT_MAX
 
-
-struct bitset {
-    unsigned *data;
-    size_t bit_len;
-};
 
 struct idx_pair {
     size_t unsigned_idx;
@@ -59,7 +58,32 @@ static bool unsigned_get_bit(unsigned *u, int bit_idx)
 }
 
 
-int bitset_init(struct bitset *bitset, size_t bit_len) 
+// a[bit] = b[bit] & (!a[bit])
+void bitset_andn(struct knit_bitset *a, struct knit_bitset *b) {
+    knit_assert_h(a->bit_len == b->bit_len, "");
+    size_t n = n_needed_unsigneds(a->bit_len);
+    for (long i=0; i<n; i++) {
+        a->data[i] = b->data[i] & (~ a->data[i]);
+    }
+}
+
+void bitset_set_all(struct knit_bitset *bitset, bool state, size_t up_to) {
+    /*
+    0000 0001
+    0001 0001
+    0101 0101
+    1111 1111
+    */
+    if (up_to == 0) {
+        up_to = bitset->bit_len;
+    }
+    unsigned char sb = state;
+    sb |= sb << 4;
+    sb |= sb << 2;
+    sb |= sb << 1;
+    memset(bitset->data, sb, sizeof(bitset->data[0]) * n_needed_unsigneds(bitset->bit_len));
+}
+int bitset_init(struct knit_bitset *bitset, size_t bit_len) 
 {
     size_t sz = 0;
     unsigned *data = NULL;
@@ -75,7 +99,7 @@ int bitset_init(struct bitset *bitset, size_t bit_len)
     bitset->bit_len = bit_len;
     return KNIT_OK;
 }
-int bitset_realloc(struct bitset *bitset, size_t new_bit_len)
+int bitset_realloc(struct knit_bitset *bitset, size_t new_bit_len)
 {
     if (!new_bit_len) {
         bitset_deinit(bitset);
@@ -93,31 +117,35 @@ int bitset_realloc(struct bitset *bitset, size_t new_bit_len)
 
     size_t old_sz = (last_idx.unsigned_idx + 1) * sizeof(unsigned);
     size_t new_sz = n_needed_unsigneds(new_bit_len) * sizeof(unsigned);
+    void *p = realloc(bitset->data, new_sz);
+    if (!p) {
+        return KNIT_NOMEM;
+    }
     bitset->bit_len = new_bit_len;
-    bitset->data = xrealloc(bitset->data, new_sz);
+    bitset->data = p;
     if (new_sz > old_sz) {
         memset(bitset->data + last_idx.unsigned_idx + 1, 0, new_sz - old_sz);
     }
     return KNIT_OK;
 }
-void bitset_deinit(struct bitset *bitset) {
-    xfree(bitset->data);
+void bitset_deinit(struct knit_bitset *bitset) {
+    free(bitset->data);
     bitset->data = NULL;
     bitset->bit_len = 0;
 }
 
-bool bitset_get_bit(struct bitset *bitset, size_t bit_idx)
+bool bitset_get_bit(struct knit_bitset *bitset, size_t bit_idx)
 {
     struct idx_pair idx = resolve_bit_idx(bit_idx);
     return bitset->data[idx.unsigned_idx] & (1U << idx.bit_idx);
 }
-void bitset_set_bit(struct bitset *bitset, size_t bit_idx, bool state)
+void bitset_set_bit(struct knit_bitset *bitset, size_t bit_idx, bool state)
 {
     struct idx_pair idx = resolve_bit_idx(bit_idx);
     unsigned_set_bit(bitset->data + idx.unsigned_idx, idx.bit_idx, state);
 }
 
-long bitset_find_false_bit(struct bitset *bitset,  size_t start_at_bit_idx)
+long bitset_find_false_bit(struct knit_bitset *bitset,  size_t start_at_bit_idx)
 {
     struct idx_pair last_idx = resolve_bit_idx(bitset->bit_len - 1);
     struct idx_pair start_idx = resolve_bit_idx(start_at_bit_idx);
@@ -160,7 +188,7 @@ found:
     return recombine_bit_idx(i, bit_idx);
 }
 
-long bitset_find_true_bit(struct bitset *bitset,  size_t start_at_bit_idx)
+long bitset_find_true_bit(struct knit_bitset *bitset,  size_t start_at_bit_idx)
 {
     struct idx_pair last_idx = resolve_bit_idx(bitset->bit_len - 1);
     struct idx_pair start_idx = resolve_bit_idx(start_at_bit_idx);
@@ -202,3 +230,4 @@ found:
     return recombine_bit_idx(i, bit_idx);
 }
 
+#endif

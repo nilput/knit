@@ -6,3 +6,5 @@ inotes.txt
 vg*
 knit
 *.swp
+.gdb*
+src/generated*

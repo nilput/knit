@@ -9,3 +9,8 @@ Conventions used in the code:
 
     no typedefs, except when it makes sense, such as making an fptr typename shorter.
 
+Where are gc objects born?:
+    1: expressions like: foo = [], bar = {}
+    2: c functions
+    3: places not considered in this list which can only be discovered by writing tests and tracking memory leaks
+    

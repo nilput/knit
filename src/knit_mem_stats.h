@@ -1,13 +1,7 @@
 #ifndef KNIT_MEM_STATS_H
 #define KNIT_MEM_STATS_H
 #include <stdio.h>
-
-struct knit_mem_stats {
-    size_t allocations;
-    size_t frees;
-    size_t reallocations;
-    size_t total_now;
-};
+#include "kdata.h"
 
 
 static void knit_mem_stats_alloc(struct knit_mem_stats *mm, size_t size) {
@@ -46,18 +40,21 @@ static char *humanbytes(char *buff, int buffsz, size_t bytes) {
 static void knit_mem_stats_init(struct knit_mem_stats *mm) {
     memset(mm, 0, sizeof *mm);
 }
-static void knit_mem_stats_dump(struct knit_mem_stats *mm) {
+static void knit_mem_stats_dump(struct knit *knit, struct knit_mem_stats *mm) {
     char tmpbuff[64];
     humanbytes(tmpbuff, sizeof tmpbuff, mm->total_now);
     fprintf(stderr, "[Memory usage report]\n"
                     "Allocations:         %llu\n"
                     "Frees:               %llu\n"
                     "Reallocations:       %llu\n"
-                    "Total in use:        %s\n", 
+                    "Total in use:        %s\n"
+                    "\n"
+                    "Heap allocated objects: %llu\n", 
                      (unsigned long long)mm->allocations,
                      (unsigned long long)mm->frees,
                      (unsigned long long)mm->reallocations,
-                     tmpbuff);
+                     tmpbuff,
+                     (unsigned long long)knit->ex.heap.count);
 }
 
 
