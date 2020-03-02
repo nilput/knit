@@ -1163,7 +1163,6 @@ static int knitx_block_dump(struct knit *knit, struct knit_block *block) {
         struct knit_insninfo *inf = &knit_insninfo[insn->insn_type];
         fprintf(stderr, "\t%d\t%s", i, inf->rep);
         switch (inf->n_op) {
-            case 2: fprintf(stderr, " %d,", insn->op2);/*fall through*/
             case 1: {
                 if (insn->insn_type == KEMIT) {
                     fprintf(stderr, " %s",  (insn->op1 == KEMTRUE)  ? "true"  :(
@@ -2910,25 +2909,15 @@ static int knitx_emit_1(struct knit *knit, struct knit_prs *prs, int opcode) {
     struct knit_insn insn;
     insn.insn_type = opcode;
     insn.op1 = -1;
-    insn.op2 = -1;
     int rv = knitx_block_add_insn(knit, &prs->curblk->block, &insn); KNIT_CRV(rv); 
     return KNIT_OK;
 }
 static int knitx_emit_2(struct knit *knit, struct knit_prs *prs, int opcode, int arg1) {
     knit_assert_h(KINSN_TVALID(opcode), "invalid insn");
+    knit_assert_h(arg1 >= -16000 && arg1 <= 16000, "invalid insn op1");
     struct knit_insn insn;
     insn.insn_type = opcode;
     insn.op1 = arg1;
-    insn.op2 = -1;
-    int rv = knitx_block_add_insn(knit, &prs->curblk->block, &insn); KNIT_CRV(rv); 
-    return KNIT_OK;
-}
-static int knitx_emit_3(struct knit *knit, struct knit_prs *prs, int opcode, int arg1, int arg2) {
-    knit_assert_h(KINSN_TVALID(opcode), "invalid insn");
-    struct knit_insn insn;
-    insn.insn_type = opcode;
-    insn.op1 = arg1;
-    insn.op2 = arg2;
     int rv = knitx_block_add_insn(knit, &prs->curblk->block, &insn); KNIT_CRV(rv); 
     return KNIT_OK;
 }
@@ -3148,11 +3137,13 @@ static int knitx_emit_expr_eval(struct knit *knit, struct knit_prs *prs, struct 
         //TODO at this point the stack will have return values
         //this will be broken if a function returns more than 1, or returns 0 values
         if (eval_ctx == KEVAL_BOOLEAN) {
-            rv = knitx_emit_3(knit, prs, KCALL, nargs, 1); KNIT_CRV(rv);
+            rv = knitx_emit_2(knit, prs, KCALL, nargs); KNIT_CRV(rv);
+            rv = knitx_emit_2(knit, prs, KCALLR, 1); KNIT_CRV(rv);
             rv = knitx_emit_1(knit, prs, KTEST); KNIT_CRV(rv);
         }
         else {
-            rv = knitx_emit_3(knit, prs, KCALL, nargs, nexpected); KNIT_CRV(rv);
+            rv = knitx_emit_2(knit, prs, KCALL, nargs); KNIT_CRV(rv);
+            rv = knitx_emit_2(knit, prs, KCALLR, nexpected); KNIT_CRV(rv);
         }
     }
     else if (expr->exptype == KAX_FUNCTION) {
@@ -4190,12 +4181,13 @@ static int knitx_exec(struct knit *knit) {
             rv = knitx_stack_rpop(knit, stack, 2);
         }
         else if (op == KCALL) {
-
-
             /*inputs: (nargs)       op: s[t-1](args...)*/
+            
+            struct knit_insn *next_insn = &block->insns.data[top_frm->u.kf.ip + 1];
+            knit_assert_h(next_insn->insn_type == KCALLR, "");
             struct knit_obj *func = stack_vals->data[stack_vals->len - 1];
             int nargs = insn->op1;
-            int nexpected_returns = insn->op2;
+            int nexpected_returns = next_insn->op1;
             //assuming cfunction
             //TODO: what to do with return values?
             //what happens at a call is, the returned values become at the top of the stack, the function and the passed arguments are popped
@@ -4240,6 +4232,10 @@ static int knitx_exec(struct knit *knit) {
             else {
                 return knit_error(knit, KNIT_RUNTIME_ERR, "tried to call a non-callable type") /*ml?*/;
             }
+
+        }
+        else if (op == KCALLR) {
+            //no op, used by prev insn
         }
         else if (op == KINDX) {
             knit_assert_h(knitx_stack_ntemp(knit, &knit->ex.stack) >= 2, "no objects to index on");
