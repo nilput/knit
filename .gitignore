@@ -4,7 +4,9 @@ hasht
 gdb*
 inotes.txt
 vg*
-knit
+/knit
 *.swp
 .gdb*
 src/generated*
+*.opendb
+*.db
