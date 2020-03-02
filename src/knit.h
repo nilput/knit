@@ -1496,7 +1496,7 @@ static int knitx_exec_state_deinit(struct knit *knit, struct knit_exec_state *ex
 
     prefixexp  -> Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name 
 
-    atom_exp -> 'null' | 'false' | 'true' | Numeral | LiteralString | LiteralList 
+    atom_exp -> 'null' | 'false' | 'true' | Numeral | LiteralString | LiteralList | LiteralDict
 
     exp  ->  atom_exp | prefixexp | functioncall |  ‘(’ exp ‘)’ | exp binop exp | unop exp | function_definition
 
@@ -1514,8 +1514,13 @@ static int knitx_exec_state_deinit(struct knit *knit, struct knit_exec_state *ex
 
     LiteralString ::= "[^"]+"
     Name          ::=  [a-zA-Z_][a-zA-Z0-9_]*
-    literallist   ::= '[' explist [','] ']' 
-	explist ::= exp {‘,’ exp}
+    explist ::= exp {‘,’ exp}
+    LiteralList   ::= '[' explist [','] ']' 
+    keyval ::= exp ':' exp
+    keylist ::= keyval {‘,’ keyval}
+    LiteralDict   ::= '{' keylist [','] '}' 
+	
+    
 
 	var ::=  Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name 
 
