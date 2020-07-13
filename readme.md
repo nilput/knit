@@ -1,16 +1,17 @@
-Knit
+# Knit
 
 An embeddable scripting language
-features:
-    - No global state
-    - C API
-    - Can be included as a single header
-    - Has a virtual machine, and a compiler that compiles code to vm instructions
-    - No dependencies\*
 
-\*The project depends on my other project hasht for hashtables (also header only!)
+Features:
+ - No global state
+ - Has a C API to call C functions
+ - Can be included as a single header
+ - Has a virtual machine, and a compiler that compiles code to vm instructions
+ - No dependencies\*
+ - Doesn't exit()
 
-Documentation:
+\*The project depends on hasht for hashtables (also header only!)
+
 
 * Functions
 ```
@@ -74,7 +75,12 @@ git clone https://github.com/nilput/knit
 ./scripts/getdependencies.sh
 make
 ```
-then you can run it by: 
+then you can run it interactively by: 
 `
 ./knit
+`
+
+or run a file like:
+`
+./knit examples/sum.kn
 `
