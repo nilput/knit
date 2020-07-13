@@ -5,14 +5,20 @@ int knitx_str_strip(struct knit *kstate) {
         return knit_error(kstate, KNIT_NARGS, "knitx_str_strip() was called with a wrong number of arguments, expecting 0 argument");
     }
     struct knit_obj *self = NULL;
-    int rv = knitx_get_arg(kstate, 0, &self); KNIT_CRV(rv);
+    int rv = knitx_get_arg(kstate, 0, &self); 
+    if (rv != KNIT_OK) 
+        return rv;
     if (self->u.ktype != KNIT_STR) {
         return knit_error(kstate, KNIT_INVALID_TYPE_ERR, "knitx_str_strip(self, ...) was called with an unexpected type, expecting str");
     }
 
     struct knit_str *dupped = NULL;
-    rv = knitx_str_new_copy_gcobj(kstate, &dupped, (struct knit_str *) self); KNIT_CRV(rv);
-    rv = knitx_str_mutstrip(kstate, dupped, " \n\t\f", KNITX_STRIP_LEFT | KNITX_STRIP_RIGHT); KNIT_CRV(rv);
+    rv = knitx_str_new_copy_gcobj(kstate, &dupped, (struct knit_str *) self); 
+    if (rv != KNIT_OK)
+        return rv;
+    rv = knitx_str_mutstrip(kstate, dupped, " \n\t\f", KNITX_STRIP_LEFT | KNITX_STRIP_RIGHT); 
+    if (rv != KNIT_OK)
+        return rv;
     knitx_stack_rpush(kstate, &kstate->ex.stack, ktobj(dupped));
 
     knitx_creturns(kstate, 1);
@@ -24,9 +30,13 @@ int knitx_list_append(struct knit *kstate) {
         return knit_error(kstate, KNIT_NARGS, "knitx_list_append(self, ...) was called with a wrong number of arguments, expecting 1 argument");
     }
     struct knit_obj *self = NULL;
-    int rv = knitx_get_arg(kstate, 0, &self); KNIT_CRV(rv);
+    int rv = knitx_get_arg(kstate, 0, &self); 
+    if (rv != KNIT_OK)
+        return rv;
     struct knit_obj *pushed = NULL;
-    rv = knitx_get_arg(kstate, 1, &pushed); KNIT_CRV(rv);
+    rv = knitx_get_arg(kstate, 1, &pushed); 
+    if (rv != KNIT_OK)
+        return rv;
     if (self->u.ktype != KNIT_LIST) {
         return knit_error(kstate, KNIT_INVALID_TYPE_ERR, "knitx_str_strip(self, ...) was called with an unexpected type, expecting str");
     }
@@ -59,12 +69,16 @@ int knitxr_str_to_int(struct knit *kstate) {
         return knit_error(kstate, KNIT_NARGS, "knitx_str_to_int(self, ...) was called with a wrong number of arguments, expecting 1 argument");
     }
     struct knit_obj *stro = NULL;
-    int rv = knitx_get_arg(kstate, 0, &stro); KNIT_CRV(rv);
+    int rv = knitx_get_arg(kstate, 0, &stro); 
+    if (rv != KNIT_OK)
+        return rv;
     struct knit_str *str = (struct knit_str *)stro;
     
     int n = atoi(str->str);
     struct knit_int *num = NULL;
-    rv = knitx_int_new_gcobj(kstate, &num, n); KNIT_CRV(rv);
+    rv = knitx_int_new_gcobj(kstate, &num, n); 
+    if (rv != KNIT_OK)
+        return rv;
     rv = knitx_stack_rpush(kstate, &kstate->ex.stack, ktobj(num));
     knitx_creturns(kstate, 1);
     return KNIT_OK;
@@ -74,11 +88,17 @@ static int knitxr_print(struct knit *kstate) {
     struct knit_str tmp;
 
     int rv = KNIT_OK;
-    rv = knitx_str_init(kstate, &tmp); KNIT_CRV(rv);
+    rv = knitx_str_init(kstate, &tmp); 
+    if (rv != KNIT_OK)
+        return rv;
     for (int i=0; i<nargs; i++) {
         struct knit_obj *obj = NULL;
-        rv = knitx_get_arg(kstate, i, &obj); KNIT_CRV(rv);
-        rv = knitx_obj_rep(kstate, obj, &tmp, 1); KNIT_CRV(rv);
+        rv = knitx_get_arg(kstate, i, &obj); 
+        if (rv != KNIT_OK)
+            return rv;
+        rv = knitx_obj_rep(kstate, obj, &tmp, 1); 
+        if (rv != KNIT_OK)
+            return rv;
         printf("%s", tmp.str);
     }
     printf("\n");
@@ -92,9 +112,13 @@ static int knitxr_len(struct knit *kstate) {
         return knit_error(kstate, KNIT_NARGS, "knitxr_len(obj) was called with a wrong number of arguments, expecting 1 argument");
     }
     struct knit_obj *obj = NULL;
-    int rv = knitx_get_arg(kstate, 0, &obj); KNIT_CRV(rv);
+    int rv = knitx_get_arg(kstate, 0, &obj); 
+    if (rv != KNIT_OK)
+        return rv;
     struct knit_int *num = NULL;
-    rv = knitx_int_new_gcobj(kstate, &num, 0); KNIT_CRV(rv);
+    rv = knitx_int_new_gcobj(kstate, &num, 0); 
+    if (rv != KNIT_OK)
+        return rv;
 
     if (obj->u.ktype == KNIT_LIST) {
         num->value = obj->u.list.len;
@@ -176,30 +200,50 @@ const struct knit_builtins kbuiltins = {
 
 static int knitx_register_cfunction(struct knit *kstate, const char *funcname, knit_func_type cfunc) {
     void *p = NULL;
-    int rv = knitx_tmalloc(kstate, sizeof(struct knit_cfunc), &p); KNIT_CRV(rv);
+    int rv = knitx_tmalloc(kstate, sizeof(struct knit_cfunc), &p); 
+    if (rv != KNIT_OK)
+        return rv;
     struct knit_cfunc *func = p;
     func->ktype = KNIT_CFUNC;
     func->fptr = cfunc;
     struct knit_str funcname_str;
-    rv = knitx_str_init_const_str(kstate, &funcname_str, funcname); KNIT_CRV(rv);
+    rv = knitx_str_init_const_str(kstate, &funcname_str, funcname); 
+    if (rv != KNIT_OK)
+        return rv;
     rv = knitx_do_global_assign(kstate, &funcname_str, ktobj(func));
     return rv;
 }
 
 static int knitx_register_constcfunction(struct knit *kstate, const char *funcname, const struct knit_cfunc *func) {
     struct knit_str funcname_str;
-    int rv = knitx_str_init_const_str(kstate, &funcname_str, funcname); KNIT_CRV(rv);
-    rv = knitx_do_global_assign(kstate, &funcname_str, ktobj(func)); KNIT_CRV(rv);
+    int rv = knitx_str_init_const_str(kstate, &funcname_str, funcname); 
+    if (rv != KNIT_OK)
+        return rv;
+    rv = knitx_do_global_assign(kstate, &funcname_str, ktobj(func)); 
+    if (rv != KNIT_OK)
+        return rv;
     return KNIT_OK;
 }
 
 static int knitxr_register_stdlib(struct knit *kstate) {
-    int rv = knitx_register_constcfunction(kstate, "print", &kbuiltins.funcs.print); KNIT_CRV(rv);
-    rv = knitx_register_constcfunction(kstate, "str_to_int", &kbuiltins.funcs.str_to_int); KNIT_CRV(rv);
-    rv = knitx_register_constcfunction(kstate, "input", &kbuiltins.funcs.input); KNIT_CRV(rv);
-    rv = knitx_register_constcfunction(kstate, "len", &kbuiltins.funcs.len); KNIT_CRV(rv);
-    rv = knitx_register_constcfunction(kstate, "gcwalk", &kbuiltins.funcs.gcwalk); KNIT_CRV(rv);
-    rv = knitx_register_constcfunction(kstate, "meminfo", &kbuiltins.funcs.meminfo); KNIT_CRV(rv);
+    int rv = knitx_register_constcfunction(kstate, "print", &kbuiltins.funcs.print); 
+    if (rv != KNIT_OK)
+        return rv;
+    rv = knitx_register_constcfunction(kstate, "str_to_int", &kbuiltins.funcs.str_to_int); 
+    if (rv != KNIT_OK)
+        return rv;
+    rv = knitx_register_constcfunction(kstate, "input", &kbuiltins.funcs.input); 
+    if (rv != KNIT_OK)
+        return rv;
+    rv = knitx_register_constcfunction(kstate, "len", &kbuiltins.funcs.len); 
+    if (rv != KNIT_OK)
+        return rv;
+    rv = knitx_register_constcfunction(kstate, "gcwalk", &kbuiltins.funcs.gcwalk); 
+    if (rv != KNIT_OK)
+        return rv;
+    rv = knitx_register_constcfunction(kstate, "meminfo", &kbuiltins.funcs.meminfo); 
+    if (rv != KNIT_OK)
+        return rv;
     return KNIT_OK;
 }
 

@@ -125,6 +125,7 @@ static int knit_gc_walk_workingset(struct knit *knit) {
         struct knit_obj *value = iter.pair->value;
         knit_gc_walk_object(knit, value);
     }
+    return KNIT_OK;
 }
 static void knit_gc_obj_null(struct knit *knit, struct knit_obj *obj) {
     obj->u.ktype = KNIT_NULL;
