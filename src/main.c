@@ -14,15 +14,29 @@ static struct knopts {
     int interactive;
     char *infile;
 } knopts = {0};
+
+static void help(char *progname) {
+    fprintf(stderr, "./%s OPTION [ file ]\n"
+            "-f     : input file\n"
+            "-v     : verbose\n"
+            "-i     : interactive\n"
+            "-h     : help\n", progname == NULL ? "knit" : progname);
+    exit(0);
+}
+
+
 static void parse_argv(char *argv[], int argc) {
     for (int i=1; i<argc; i++) {
-        if (strcmp(argv[i], "-v")==0) {
+        if (strcmp(argv[i], "-v") == 0) {
             knopts.verbose = 1;
         }
-        else if (strcmp(argv[i], "-i")==0) {
+        else if (strcmp(argv[i], "-i") == 0) {
             knopts.interactive = 1;
         }
-        else if (strncmp(argv[i], "-f", 2)==0) {
+        else if (strcmp(argv[i], "-h") == 0) {
+            help(argv[0]);
+        }
+        else if (strncmp(argv[i], "-f", 2) == 0) {
             if (strlen(argv[i]) > 2) {
                 knopts.infile = argv[i] + 2;
             }   
@@ -30,6 +44,9 @@ static void parse_argv(char *argv[], int argc) {
                 knopts.infile = argv[i+1];
                 i++;
             }
+        }
+        else if (i == argc - 1) {
+            knopts.infile = argv[i];
         }
         else {
             fprintf(stderr, "unknown arg: '%s'\n", argv[i]);
