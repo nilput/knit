@@ -1,0 +1,2 @@
+./scripts/getdependencies.sh
+make

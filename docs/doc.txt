@@ -1,16 +1,11 @@
 This documentation file is about the language implementation itself, and not its API or usage.
 
 Conventions used in the code:
-    No usage of exit() or abort() functions, except in an error handler, or in impossible situations 
-    (OOM is not considered impossbile).
+    No global state
+    No usage of exit() or abort() functions, except in an error handler, or in impossible situations (OOM is to be handled gracefully).
 
     new/destroy functions: act as a pair, allocating dynamic memory using an allocator.
     init/deinit functions: act as a pair, they don't allocate memory for the storage of the object being initialized itself, but they can allocate memory for its underlying resources.
 
     no typedefs, except when it makes sense, such as making an fptr typename shorter.
-
-Where are gc objects born?:
-    1: expressions like: foo = [], bar = {}
-    2: c functions
-    3: places not considered in this list which can only be discovered by writing tests and tracking memory leaks
     
