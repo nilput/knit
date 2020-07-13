@@ -1,0 +1,10 @@
+map = function(iterable, func) {
+    new_iterable = []
+    for (i=0; i<len(iterable); i=i+1) {
+        new_iterable.append(func(iterable[i]))
+    }
+    return new_iterable
+}
+
+nums = [1,2,3,4,5]
+print(map(nums, function(n){ return n * 10; }))

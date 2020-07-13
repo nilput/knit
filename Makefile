@@ -7,8 +7,6 @@ HASHT_INC := -I hasht/src/ -I hasht/third_party/
 
 src/knit_vars_hasht.h: hasht/src/hasht.h
 	./hasht/scripts/gen_hasht.sh knit_vars_hasht $@
-src/knit_mem_hasht.h: hasht/src/hasht.h
-	./hasht/scripts/gen_hasht.sh knit_mem_hasht $@
 src/kobj_hasht.h: hasht/src/hasht.h
 	./hasht/scripts/gen_hasht.sh kobj_hasht $@
 src/tok_darray.h: src/darray/src/darray.h
