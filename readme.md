@@ -1,22 +1,17 @@
-Currently this is a work in progress, it's nowhere near completion
+Knit
 
-The project depends on my other project hasht.
-the directory structure is supposed to look like:
+An embeddable scripting language
+features:
+    - No global state
+    - C API
+    - Can be included as a single header
+    - Has a virtual machine, and a compiler that compiles code to vm instructions
+    - No dependencies\*
 
-    knit->
-        hasht/
-            src
-            scripts
-            ...
-        src/
-            test.c
-            knit.h
-            ...
-        Makefile
-        ...
+\*The project depends on my other project hasht for hashtables (also header only!)
 
+Documentation:
 
-Implemented Features
 * Functions
 ```
 f = function(a, b) {
@@ -31,7 +26,7 @@ f = function() {
     print(this_is_a_local);
 };
 ```
-* Global Variables
+* Globals
 ```
 this_is_a_global = "Hmm";
 f = function() {
@@ -39,7 +34,21 @@ f = function() {
 };
 ```
 * If Statements
+```
+if (num % 2 == 0) {
+    print('Even!')
+}
+else {
+    print('Odd!')
+}
+```
 * While Statements
+```
+    condition = true
+    while (condition) {
+        print('infinite loop!')
+    }
+```
 * Lists
 ```
 list = [];
@@ -48,10 +57,13 @@ while (i < 10) {
     list.append(i);
     i = i + 1;
 }
+for (i=0; i<len(list); i=i+1) {
+    print(list[i])
+}
 ```
-* Short-circuiting logical operators "and" and "or"
+* Other stuff
 ```
-while (a and b or c) {
+if (a and b or c) {
     print("ok");
 }
 ```
@@ -59,11 +71,10 @@ while (a and b or c) {
 ## How to build
 ```
 git clone https://github.com/nilput/knit
-cd knit
-git clone https://github.com/nilput/hasht
+./scripts/getdependencies.sh
 make
 ```
-then you can try 
+then you can run it by: 
 `
-./test -i
+./knit
 `
