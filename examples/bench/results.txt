@@ -1,70 +1,70 @@
 
  Performance counter stats for 'php7.2 gcd.php' (100 runs):
 
-          7.705883      task-clock (msec)         #    0.962 CPUs utilized            ( +-  0.41% )
-                 0      context-switches          #    0.044 K/sec                    ( +- 15.20% )
+          8.438967      task-clock (msec)         #    0.965 CPUs utilized            ( +-  1.58% )
+                 0      context-switches          #    0.039 K/sec                    ( +- 14.95% )
                  0      cpu-migrations            #    0.000 K/sec                  
-             1,106      page-faults               #    0.144 M/sec                    ( +-  0.02% )
-        30,243,454      cycles                    #    3.925 GHz                      ( +-  0.27% )
-        32,213,931      instructions              #    1.07  insn per cycle           ( +-  0.01% )
-         6,069,659      branches                  #  787.666 M/sec                    ( +-  0.01% )
-           138,563      branch-misses             #    2.28% of all branches          ( +-  0.05% )
+             1,106      page-faults               #    0.131 M/sec                    ( +-  0.02% )
+        32,785,447      cycles                    #    3.885 GHz                      ( +-  1.28% )
+        32,235,480      instructions              #    0.98  insn per cycle           ( +-  0.01% )
+         6,071,910      branches                  #  719.509 M/sec                    ( +-  0.01% )
+           139,069      branch-misses             #    2.29% of all branches          ( +-  0.06% )
 
-       0.008007661 seconds time elapsed                                          ( +-  0.42% )
+       0.008749163 seconds time elapsed                                          ( +-  1.56% )
 
 
  Performance counter stats for 'python3 gcd.py' (100 runs):
 
-         18.218020      task-clock (msec)         #    0.983 CPUs utilized            ( +-  0.41% )
-                 0      context-switches          #    0.025 K/sec                    ( +- 20.56% )
+         19.732580      task-clock (msec)         #    0.982 CPUs utilized            ( +-  2.16% )
+                 0      context-switches          #    0.017 K/sec                    ( +- 17.84% )
                  0      cpu-migrations            #    0.000 K/sec                  
-             1,117      page-faults               #    0.061 M/sec                    ( +-  0.02% )
-        71,651,568      cycles                    #    3.933 GHz                      ( +-  0.37% )
-        78,099,988      instructions              #    1.09  insn per cycle           ( +-  0.01% )
-        17,035,214      branches                  #  935.075 M/sec                    ( +-  0.01% )
-           679,022      branch-misses             #    3.99% of all branches          ( +-  0.05% )
+             1,116      page-faults               #    0.057 M/sec                    ( +-  0.01% )
+        74,947,300      cycles                    #    3.798 GHz                      ( +-  1.22% )
+        78,144,569      instructions              #    1.04  insn per cycle           ( +-  0.01% )
+        17,041,927      branches                  #  863.644 M/sec                    ( +-  0.01% )
+           685,541      branch-misses             #    4.02% of all branches          ( +-  0.26% )
 
-       0.018540381 seconds time elapsed                                          ( +-  0.41% )
+       0.020084357 seconds time elapsed                                          ( +-  2.15% )
 
 
  Performance counter stats for 'lua5.3 gcd.lua' (100 runs):
 
-          0.962685      task-clock (msec)         #    0.806 CPUs utilized            ( +-  0.85% )
-                 0      context-switches          #    0.218 K/sec                    ( +- 28.95% )
+          1.011424      task-clock (msec)         #    0.792 CPUs utilized            ( +-  1.28% )
+                 1      context-switches          #    0.732 K/sec                    ( +- 18.28% )
                  0      cpu-migrations            #    0.000 K/sec                  
-               106      page-faults               #    0.110 M/sec                    ( +-  0.10% )
-         3,557,424      cycles                    #    3.695 GHz                      ( +-  0.77% )
-         3,317,545      instructions              #    0.93  insn per cycle           ( +-  0.09% )
-           646,941      branches                  #  672.017 M/sec                    ( +-  0.08% )
-            20,134      branch-misses             #    3.11% of all branches          ( +-  0.17% )
+               106      page-faults               #    0.105 M/sec                    ( +-  0.09% )
+         3,698,844      cycles                    #    3.657 GHz                      ( +-  1.17% )
+         3,325,777      instructions              #    0.90  insn per cycle           ( +-  0.10% )
+           648,431      branches                  #  641.107 M/sec                    ( +-  0.09% )
+            20,285      branch-misses             #    3.13% of all branches          ( +-  0.20% )
 
-       0.001194504 seconds time elapsed                                          ( +-  1.17% )
+       0.001276872 seconds time elapsed                                          ( +-  1.49% )
 
 
  Performance counter stats for 'perl gcd.pl' (100 runs):
 
-          1.225128      task-clock (msec)         #    0.827 CPUs utilized            ( +-  1.04% )
-                 0      context-switches          #    0.253 K/sec                    ( +- 18.16% )
+          1.251546      task-clock (msec)         #    0.827 CPUs utilized            ( +-  0.97% )
+                 0      context-switches          #    0.224 K/sec                    ( +- 20.36% )
                  0      cpu-migrations            #    0.000 K/sec                  
-               180      page-faults               #    0.147 M/sec                    ( +-  0.13% )
-         4,609,436      cycles                    #    3.762 GHz                      ( +-  0.87% )
-         4,333,023      instructions              #    0.94  insn per cycle           ( +-  0.08% )
-           849,703      branches                  #  693.563 M/sec                    ( +-  0.07% )
-            24,941      branch-misses             #    2.94% of all branches          ( +-  0.21% )
+               180      page-faults               #    0.144 M/sec                    ( +-  0.12% )
+         4,701,418      cycles                    #    3.756 GHz                      ( +-  0.79% )
+         4,318,577      instructions              #    0.92  insn per cycle           ( +-  0.24% )
+           839,781      branches                  #  670.995 M/sec                    ( +-  0.22% )
+            24,566      branch-misses             #    2.93% of all branches          ( +-  0.29% )
 
-       0.001481740 seconds time elapsed                                          ( +-  1.02% )
+       0.001513496 seconds time elapsed                                          ( +-  0.99% )
 
 
  Performance counter stats for '../../knit gcd.kn' (100 runs):
 
-          0.692693      task-clock (msec)         #    0.757 CPUs utilized            ( +-  1.25% )
-                 1      context-switches          #    0.924 K/sec                    ( +- 13.96% )
+          0.705449      task-clock (msec)         #    0.750 CPUs utilized            ( +-  1.13% )
+                 1      context-switches          #    0.921 K/sec                    ( +- 16.42% )
                  0      cpu-migrations            #    0.000 K/sec                  
-                75      page-faults               #    0.109 M/sec                    ( +-  0.13% )
-         2,461,186      cycles                    #    3.553 GHz                      ( +-  0.91% )
-         2,854,657      instructions              #    1.16  insn per cycle           ( +-  0.06% )
-           604,988      branches                  #  873.385 M/sec                    ( +-  0.05% )
-            12,162      branch-misses             #    2.01% of all branches          ( +-  0.30% )
+                75      page-faults               #    0.107 M/sec                    ( +-  0.16% )
+         2,506,014      cycles                    #    3.552 GHz                      ( +-  0.92% )
+         2,851,318      instructions              #    1.14  insn per cycle           ( +-  0.05% )
+           604,513      branches                  #  856.920 M/sec                    ( +-  0.05% )
+            12,178      branch-misses             #    2.01% of all branches          ( +-  0.29% )
 
-       0.000915367 seconds time elapsed                                          ( +-  1.36% )
+       0.000940242 seconds time elapsed                                          ( +-  1.73% )
 
