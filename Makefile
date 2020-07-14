@@ -2,6 +2,7 @@
 .PHONY: all clean
 GEN :=        src/knit_vars_hasht.h src/knit_mem_hasht.h src/kobj_hasht.h src/tok_darray.h src/insns_darray.h
 GEN := $(GEN) src/knit_objp_darray.h src/knit_frame_darray.h src/knit_expr_darray.h src/knit_stmt_darray.h src/knit_varname_darray.h 
+opt:
 all: knit test $(GEN)
 HASHT_INC := -I hasht/src/ -I hasht/third_party/
 
