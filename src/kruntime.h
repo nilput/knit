@@ -46,6 +46,44 @@ int knitx_list_append(struct knit *kstate) {
     knitx_creturns(kstate, 0);
     return KNIT_OK;
 }
+
+int knitxr_substr(struct knit *kstate) {
+    struct knit_obj *str_obj = NULL;
+    int rv = knitx_get_arg(kstate, 0, &str_obj); 
+    if (rv != KNIT_OK)
+        return rv;
+    struct knit_obj *begin_index_obj = NULL;
+    rv = knitx_get_arg(kstate, 1, &begin_index_obj); 
+    if (rv != KNIT_OK)
+        return rv;
+    struct knit_obj *end_index_obj = NULL;
+    rv = knitx_get_arg(kstate, 2, &end_index_obj); 
+    if (rv != KNIT_OK)
+        return rv;
+
+    if (str_obj->u.ktype != KNIT_STR || begin_index_obj->u.ktype != KNIT_INT || end_index_obj->u.ktype != KNIT_INT) {
+        return knit_error(kstate, KNIT_INVALID_TYPE_ERR, "substr(str, begin, end) was called with unexpected types, expecting <str, int, int>");
+    }
+
+    char *str = str_obj->u.str.str;
+    int string_length = str_obj->u.str.len;
+    int begin = begin_index_obj->u.integer.value;
+    int end   = end_index_obj->u.integer.value;
+
+    if (begin < 0 || begin > end || end > string_length)
+        return knit_error(kstate, KNIT_RUNTIME_ERR, "substr(str, begin, end) was called with out of range indices");
+
+    struct knit_str *s = NULL;
+    rv = knitx_str_new_strlcpy_gcobj(kstate, &s, str + begin, end - begin);
+    if (rv != KNIT_OK)
+        return knit_error(kstate, KNIT_RUNTIME_ERR, "substr(str, begin, end) failed");
+
+    knitx_stack_rpush(kstate, &kstate->ex.stack, ktobj(s));
+
+    knitx_creturns(kstate, 1);
+    return KNIT_OK;
+}
+
 int knitxr_input(struct knit *kstate) {
     char buf[256];
     char *p = fgets(buf, 255, stdin);
@@ -183,6 +221,10 @@ const struct knit_builtins kbuiltins = {
             .ktype = KNIT_CFUNC,
             .fptr = knitxr_str_to_int
         },
+        .substr = {
+            .ktype = KNIT_CFUNC,
+            .fptr = knitxr_substr
+        },
         .input = {
             .ktype = KNIT_CFUNC,
             .fptr = knitxr_input,
@@ -230,6 +272,9 @@ static int knitxr_register_stdlib(struct knit *kstate) {
     if (rv != KNIT_OK)
         return rv;
     rv = knitx_register_constcfunction(kstate, "str_to_int", &kbuiltins.funcs.str_to_int); 
+    if (rv != KNIT_OK)
+        return rv;
+    rv = knitx_register_constcfunction(kstate, "substr", &kbuiltins.funcs.substr); 
     if (rv != KNIT_OK)
         return rv;
     rv = knitx_register_constcfunction(kstate, "input", &kbuiltins.funcs.input); 

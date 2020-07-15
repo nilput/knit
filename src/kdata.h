@@ -103,6 +103,7 @@ struct knit_obj {
         struct knit_cfunc cfunc;
         struct knit_kfunc kfunc; //huge?
         struct knit_bvalue bval; 
+        struct knit_dict dict;
     } u;
 };
 
@@ -689,6 +690,7 @@ struct knit_builtins {
         struct knit_cfunc print;
         struct knit_cfunc len;
         struct knit_cfunc str_to_int;
+        struct knit_cfunc substr;
         struct knit_cfunc input;
         struct knit_cfunc gcwalk;
         struct knit_cfunc meminfo;

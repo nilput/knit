@@ -1,0 +1,4 @@
+dict = {
+"Hello" : "World"
+}
+print("Hello ", dict["Hello"])

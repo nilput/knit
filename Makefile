@@ -29,6 +29,8 @@ debug: CFLAGS := $(CFLAGS) -g3 -O0 -D KNIT_DEBUG_PRINT
 debug: all
 opt: CFLAGS := $(CFLAGS) -O2
 opt: all
+san: CFLAGS := $(CFLAGS) -fsanitize=address
+san: all
 test: src/test.c $(GEN) src/knit.h
 	$(CC) $(CFLAGS) $(HASHT_INC) $< -o $@
 knit: src/main.c $(GEN) src/knit.h

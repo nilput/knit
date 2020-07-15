@@ -51,6 +51,7 @@ static int knitx_str_new_copy(struct knit *knit, struct knit_str **strp, struct 
 static int knitx_str_new_copy_gcobj(struct knit *knit, struct knit_str **strp, struct knit_str *src);
 static int knitx_str_strcpy(struct knit *knit, struct knit_str *str, const char *src0);
 static int knitx_tok_extract_to_str(struct knit *knit, struct knit_lex *lxr, struct knit_tok *tok, struct knit_str *str);
+static int knitx_str_strlcpy(struct knit *knit, struct knit_str *str, const char *src, int srclen);
 
 /*
     hashtable functions
@@ -294,7 +295,7 @@ static int knitx_dict_init(struct knit *knit, struct knit_dict *dict, int isz) {
     int rv = KNIT_OK;
     if (isz < 0)
         isz = 0;
-    rv = kobj_hasht_init(&dict->ht, isz);
+    rv = kobj_hasht_init_with_udata(&dict->ht, isz, knit);
 
     if (rv != KOBJ_HASHT_OK) {
         return knit_error(knit, KNIT_RUNTIME_ERR, "couldn't initialize dict hashtable");
@@ -466,6 +467,17 @@ static int knitx_str_new_strcpy(struct knit *knit, struct knit_str **strp, const
     if (rv != KNIT_OK)
         return rv;
     rv = knitx_str_strcpy(knit, *strp, src0);
+    if (rv != KNIT_OK) {
+        *strp = NULL;
+        return rv;
+    }
+    return KNIT_OK;
+}
+
+static int knitx_str_new_strlcpy_gcobj(struct knit *knit, struct knit_str **strp, const char *src0, int len) {
+    int rv = knitx_str_new_gcobj(knit, strp);
+    if (rv == KNIT_OK)
+        rv = knitx_str_strlcpy(knit, *strp, src0, len);
     if (rv != KNIT_OK) {
         *strp = NULL;
         return rv;
@@ -1545,7 +1557,7 @@ static int knitx_stack_pop_frame(struct knit *knit, struct knit_stack *stack) {
 }
 
 static int knitx_exec_state_init(struct knit *knit, struct knit_exec_state *exs) {
-    int rv = knit_vars_hasht_init(&exs->global_ht, 32);
+    int rv = knit_vars_hasht_init_with_udata(&exs->global_ht, 32, knit);
     if (rv != KNIT_VARS_HASHT_OK) {
         return knit_error(knit, KNIT_RUNTIME_ERR, "couldn't initialize vars hashtable");;
     }
