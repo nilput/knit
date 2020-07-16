@@ -1,6 +1,6 @@
 
 .PHONY: all clean
-GEN :=        src/knit/knit_vars_hasht.h src/knit/knit_mem_hasht.h src/knit/kobj_hasht.h src/knit/tok_darray.h src/knit/insns_darray.h
+GEN :=        src/knit/knit_vars_hasht.h src/knit/kobj_hasht.h src/knit/tok_darray.h src/knit/insns_darray.h
 GEN := $(GEN) src/knit/knit_objp_darray.h src/knit/knit_frame_darray.h src/knit/knit_expr_darray.h src/knit/knit_stmt_darray.h src/knit/knit_varname_darray.h 
 opt:
 all: knit test $(GEN)
