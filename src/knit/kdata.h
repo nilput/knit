@@ -29,7 +29,7 @@ struct knit_list {
 };
 
 
-#include "strhash/superfasthash.h" //in hasht dirs
+#include "../hasht/third_party/strhash/superfasthash.h" //in hasht dirs
 
 /*hashtable defs*/
     typedef struct knit_str    knit_vars_hasht_key_type;   //internal notes: there is no indirection, init/deinit must be used on pair objects

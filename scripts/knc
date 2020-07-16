@@ -1,0 +1,33 @@
+#!/bin/bash
+#compiles a knit script to an executable
+function die() {
+    echo $@ >&2
+    exit 1;
+}
+
+input_script_src="$(cat "$1" | sed 's/"/\\"/g' | sed 's/\(.*\)/"\1"/')"
+
+output_dir="$(pwd)"
+script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+cd "$script_dir" || die ""
+[ -n "$1" ] || die "usage: $0 <script.kn>"
+
+
+prog="$(cat <<EOF
+#include "../src/knit/knit.h"
+
+int main(void) {
+    struct knit knit;
+    char *script = $input_script_src;
+    int error = knitx_init(&knit, 1);
+    if (error != 0) return 1;
+    error = knitxr_register_stdlib(&knit);
+    if (error != 0) return 1;
+    error = knitx_exec_str(&knit, script);
+    if (error != 0) return 1;
+    knitx_deinit(&knit);
+}
+EOF
+)"
+
+gcc -O2 -x c - -o "$output_dir/$(basename $1 | sed s#\.kn##)" <<<"$prog" || { echo "failed to compile program: $prog"; exit 1; }

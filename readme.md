@@ -7,10 +7,8 @@ Features:
  - Has a C API to call C functions
  - Can be included as a single header
  - Has a virtual machine, and a compiler that compiles code to vm instructions
- - No dependencies\*
+ - No dependencies
  - Doesn't exit()
-
-\*The project depends on hasht for hashtables (also header only!)
 
 
 * Functions
@@ -71,8 +69,7 @@ if (a and b or c) {
 
 ## How to build
 ```
-git clone https://github.com/nilput/knit
-./scripts/getdependencies.sh
+git clone https://github.com/nilput/knit --recursive
 make
 ```
 then you can run it interactively by: 

@@ -1,6 +1,5 @@
 test
 priv
-hasht
 gdb*
 inotes.txt
 vg*
@@ -10,3 +9,5 @@ vg*
 src/generated*
 *.opendb
 *.db
+*_hasht.h
+*_darray.h
