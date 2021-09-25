@@ -9,9 +9,9 @@ src/hasht/src/hasht.h:
 	git submodule update --init
 
 src/knit/knit_vars_hasht.h: src/hasht/src/hasht.h
-	./src/hasht/scripts/gen_hasht.sh knit_vars_hasht $@
+	./src/hasht/scripts/gen_hasht knit_vars_hasht $@
 src/knit/kobj_hasht.h: src/hasht/src/hasht.h
-	./src/hasht/scripts/gen_hasht.sh kobj_hasht $@
+	./src/hasht/scripts/gen_hasht kobj_hasht $@
 src/knit/tok_darray.h: src/knit/darray/src/darray.h
 	./src/knit/darray/scripts/gen_darray.sh tok_darray 'struct knit_tok' $@
 src/knit/insns_darray.h: src/knit/darray/src/darray.h
