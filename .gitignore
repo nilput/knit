@@ -9,5 +9,5 @@ vg*
 src/generated*
 *.opendb
 *.db
-*_hasht.h
+*_jadwal.h
 *_darray.h

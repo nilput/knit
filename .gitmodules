@@ -1,3 +1,3 @@
-[submodule "src/hasht"]
-	path = src/hasht
-	url = https://github.com/nilput/hasht
+[submodule "src/jadwal"]
+	path = src/jadwal
+	url = https://github.com/nilput/jadwal

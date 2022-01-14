@@ -81,10 +81,10 @@ static void knit_gc_walk_object(struct knit *knit, struct knit_obj *obj) {
     #endif
     if (obj->u.ktype == KNIT_DICT) {
         struct knit_dict *dict = (struct knit_dict*) obj;
-        struct kobj_hasht *ht = &dict->ht;
-        struct kobj_hasht_iter iter;
-        kobj_hasht_begin_iterator(ht, &iter);
-        for (int i=0; kobj_hasht_iter_check(&iter); i++, kobj_hasht_iter_next(ht, &iter)) 
+        struct kobj_jadwal *ht = &dict->ht;
+        struct kobj_jadwal_iter iter;
+        kobj_jadwal_begin_iterator(ht, &iter);
+        for (int i=0; kobj_jadwal_iter_check(&iter); i++, kobj_jadwal_iter_next(ht, &iter)) 
         {
             struct knit_obj *key = iter.pair->key;
             struct knit_obj *value = iter.pair->value;
@@ -112,15 +112,15 @@ static void knit_gc_walk_object(struct knit *knit, struct knit_obj *obj) {
 static int knit_gc_walk_workingset(struct knit *knit) {
     struct knit_exec_state *exec_state = &knit->ex;
     struct knit_stack *stack = &knit->ex.stack;
-    struct knit_vars_hasht *vars_ht = &knit->ex.global_ht;
+    struct knit_vars_jadwal *vars_ht = &knit->ex.global_ht;
     struct knit_objp_darray *stack_vals = &stack->vals;
     for (int i=0; i<stack_vals->len; i++) {
         knit_gc_walk_object(knit, stack_vals->data[i]);
     }
 
-    struct knit_vars_hasht_iter iter;
-    knit_vars_hasht_begin_iterator(vars_ht, &iter);
-    for (int i=0; knit_vars_hasht_iter_check(&iter); i++, knit_vars_hasht_iter_next(vars_ht, &iter)) 
+    struct knit_vars_jadwal_iter iter;
+    knit_vars_jadwal_begin_iterator(vars_ht, &iter);
+    for (int i=0; knit_vars_jadwal_iter_check(&iter); i++, knit_vars_jadwal_iter_next(vars_ht, &iter)) 
     {
         struct knit_obj *value = iter.pair->value;
         knit_gc_walk_object(knit, value);

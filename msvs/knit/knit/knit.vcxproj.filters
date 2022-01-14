@@ -51,7 +51,7 @@
     <ClInclude Include="..\..\..\src\knit_gc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\knit_mem_hasht.h">
+    <ClInclude Include="..\..\..\src\knit_mem_jadwal.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\src\knit_mem_stats.h">
@@ -72,10 +72,10 @@
     <ClInclude Include="..\..\..\src\knit_varname_darray.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\knit_vars_hasht.h">
+    <ClInclude Include="..\..\..\src\knit_vars_jadwal.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\kobj_hasht.h">
+    <ClInclude Include="..\..\..\src\kobj_jadwal.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\src\kruntime.h">

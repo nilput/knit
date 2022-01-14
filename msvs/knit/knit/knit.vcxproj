@@ -101,7 +101,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\hasht\src;$(ProjectDir)..\..\..\hasht\third_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\jadwal\src;$(ProjectDir)..\..\..\jadwal\third_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -155,15 +155,15 @@
     <ClInclude Include="..\..\..\src\knit_expr_darray.h" />
     <ClInclude Include="..\..\..\src\knit_frame_darray.h" />
     <ClInclude Include="..\..\..\src\knit_gc.h" />
-    <ClInclude Include="..\..\..\src\knit_mem_hasht.h" />
+    <ClInclude Include="..\..\..\src\knit_mem_jadwal.h" />
     <ClInclude Include="..\..\..\src\knit_mem_stats.h" />
     <ClInclude Include="..\..\..\src\knit_mem_stats_data.h" />
     <ClInclude Include="..\..\..\src\knit_objp_darray.h" />
     <ClInclude Include="..\..\..\src\knit_stmt_darray.h" />
     <ClInclude Include="..\..\..\src\knit_util.h" />
     <ClInclude Include="..\..\..\src\knit_varname_darray.h" />
-    <ClInclude Include="..\..\..\src\knit_vars_hasht.h" />
-    <ClInclude Include="..\..\..\src\kobj_hasht.h" />
+    <ClInclude Include="..\..\..\src\knit_vars_jadwal.h" />
+    <ClInclude Include="..\..\..\src\kobj_jadwal.h" />
     <ClInclude Include="..\..\..\src\kruntime.h" />
     <ClInclude Include="..\..\..\src\tok_darray.h" />
     <ClInclude Include="stdafx.h" />

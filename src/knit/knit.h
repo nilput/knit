@@ -56,14 +56,14 @@ static int knitx_str_strlcpy(struct knit *knit, struct knit_str *str, const char
 /*
     hashtable functions
 */
-    static int knit_vars_hasht_key_eq_cmp(knit_vars_hasht_key_type *key_1, knit_vars_hasht_key_type *key_2) {
+    static int knit_vars_jadwal_key_eq_cmp(knit_vars_jadwal_key_type *key_1, knit_vars_jadwal_key_type *key_2) {
         struct knit_str *str1 = key_1;
         struct knit_str *str2 = key_2;
         if (str1->len != str2->len)
             return 1;
         return memcmp(str1->str, str2->str, str1->len); //0 if eq
     }
-    static size_t knit_vars_hasht_hash(knit_vars_hasht_key_type *key) {
+    static size_t knit_vars_jadwal_hash(knit_vars_jadwal_key_type *key) {
         struct knit_str *str = key;
         return SuperFastHash(str->str, str->len);
     }
@@ -81,7 +81,7 @@ static int knitx_str_strlcpy(struct knit *knit, struct knit_str *str, const char
             case KNIT_INT:
                 return obj->u.integer.value;
             case KNIT_STR:
-                /*defined in hasht third_party/ */
+                /*defined in jadwal third_party/ */
                 return SuperFastHash(obj->u.str.str, obj->u.str.len);
             default:
                 return knit_error(knit, KNIT_RUNTIME_ERR, "hashing %s types is not implemented", knitx_obj_type_name(knit, obj));
@@ -90,15 +90,15 @@ static int knitx_str_strlcpy(struct knit *knit, struct knit_str *str, const char
         return 0;
     }
     
-    static int kobj_hasht_key_eq_cmp(void *udata, kobj_hasht_key_type *key_1, kobj_hasht_key_type *key_2) {
+    static int kobj_jadwal_key_eq_cmp(void *udata, kobj_jadwal_key_type *key_1, kobj_jadwal_key_type *key_2) {
         struct knit *knit = (struct knit *) udata;
-        knit_assert_h(!!knit, "NULL was passed to kobj_hasht_key_eq_cmp");
+        knit_assert_h(!!knit, "NULL was passed to kobj_jadwal_key_eq_cmp");
         //we are comparing two knit_obj * pointers
         if (*key_1 == *key_2)
             return 0;  //eq
         return knitx_obj_eq(knit, *key_1, *key_2) ? 0 : 1; //0 if eq
     }
-    static size_t kobj_hasht_hash(void *udata, kobj_hasht_key_type *key) {
+    static size_t kobj_jadwal_hash(void *udata, kobj_jadwal_key_type *key) {
         struct knit *knit = (struct knit *) udata;
         return knitx_obj_hash(knit, *key);
     }
@@ -295,9 +295,9 @@ static int knitx_dict_init(struct knit *knit, struct knit_dict *dict, int isz) {
     int rv = KNIT_OK;
     if (isz < 0)
         isz = 0;
-    rv = kobj_hasht_init_with_udata(&dict->ht, isz, knit);
+    rv = kobj_jadwal_init_with_udata(&dict->ht, isz, knit);
 
-    if (rv != KOBJ_HASHT_OK) {
+    if (rv != KOBJ_JADWAL_OK) {
         return knit_error(knit, KNIT_RUNTIME_ERR, "couldn't initialize dict hashtable");
     }
     dict->ktype = KNIT_DICT;
@@ -306,7 +306,7 @@ static int knitx_dict_init(struct knit *knit, struct knit_dict *dict, int isz) {
 }
 
 static int knitx_dict_deinit(struct knit *knit, struct knit_dict *dict) {
-    kobj_hasht_deinit(&dict->ht);
+    kobj_jadwal_deinit(&dict->ht);
     return KNIT_OK;
 }
 
@@ -334,34 +334,34 @@ static int knitx_dict_destroy(struct knit *knit, struct knit_dict *dict) {
 }
 
 static int knitx_dict_lookup(struct knit *knit, struct knit_dict *dict, struct knit_obj *key, struct knit_obj **value_out) {
-    struct kobj_hasht_iter iter;
-    int rv = kobj_hasht_find(&dict->ht, &key, &iter);
+    struct kobj_jadwal_iter iter;
+    int rv = kobj_jadwal_find(&dict->ht, &key, &iter);
 #ifdef KNIT_CHECKS
     *value_out = NULL;
 #endif
-    if (rv != KOBJ_HASHT_OK) {
-        if (rv == KOBJ_HASHT_NOT_FOUND)
+    if (rv != KOBJ_JADWAL_OK) {
+        if (rv == KOBJ_JADWAL_NOT_FOUND)
             return KNIT_NOT_FOUND;
         else 
-            return knit_error(knit, KNIT_RUNTIME_ERR, "an error occured while trying to lookup a dict key in kobj_hasht_find()");
+            return knit_error(knit, KNIT_RUNTIME_ERR, "an error occured while trying to lookup a dict key in kobj_jadwal_find()");
     }
     *value_out = iter.pair->value;
     return KNIT_OK;
 }
 
 static int knitx_dict_set(struct knit *knit, struct knit_dict *dict, struct knit_obj *key, struct knit_obj *value) {
-    struct kobj_hasht_iter iter;
-    int rv = kobj_hasht_find(&dict->ht, &key, &iter);
-    if (rv == KOBJ_HASHT_OK) {
+    struct kobj_jadwal_iter iter;
+    int rv = kobj_jadwal_find(&dict->ht, &key, &iter);
+    if (rv == KOBJ_JADWAL_OK) {
         //todo destroy previous value 
         iter.pair->value = value;
     }
-    else if (rv == KOBJ_HASHT_NOT_FOUND) {
+    else if (rv == KOBJ_JADWAL_NOT_FOUND) {
         struct knit_obj *new_key = NULL;
         rv = knitx_obj_copy(knit, &new_key, key); 
         if (rv != KNIT_OK)
             return rv;
-        rv = kobj_hasht_insert(&dict->ht, &new_key, &value);
+        rv = kobj_jadwal_insert(&dict->ht, &new_key, &value);
     }
     else {
         return knit_error(knit, KNIT_RUNTIME_ERR, "knitx_dict_set(): assignment failed");
@@ -690,13 +690,13 @@ static int knitx_getvar_(struct knit *knit, const char *varname, struct knit_obj
         return rv;
     }
     struct knit_exec_state *exs = &knit->ex;
-    struct knit_vars_hasht_iter iter;
-    rv = knit_vars_hasht_find(&exs->global_ht, &key, &iter);
-    if (rv != KNIT_VARS_HASHT_OK) {
-        if (rv == KNIT_VARS_HASHT_NOT_FOUND)
+    struct knit_vars_jadwal_iter iter;
+    rv = knit_vars_jadwal_find(&exs->global_ht, &key, &iter);
+    if (rv != KNIT_VARS_JADWAL_OK) {
+        if (rv == KNIT_VARS_JADWAL_NOT_FOUND)
             return knit_error(knit, KNIT_NOT_FOUND, "variable '%s' is undefined", varname);
         else 
-            return knit_error(knit, KNIT_RUNTIME_ERR, "an error occured while trying to lookup a variable in knit_vars_hasht_find()");
+            return knit_error(knit, KNIT_RUNTIME_ERR, "an error occured while trying to lookup a variable in knit_vars_jadwal_find()");
     }
     *objp = iter.pair->value;
     return KNIT_OK;
@@ -730,11 +730,11 @@ static int knitx_vardump(struct knit *knit, const char *varname) {
 }
 
 static int knitx_globals_dump(struct knit *knit) {
-    struct knit_vars_hasht *ht = &knit->ex.global_ht;
-    struct knit_vars_hasht_iter iter;
-    int rv = knit_vars_hasht_begin_iterator(ht, &iter);
+    struct knit_vars_jadwal *ht = &knit->ex.global_ht;
+    struct knit_vars_jadwal_iter iter;
+    int rv = knit_vars_jadwal_begin_iterator(ht, &iter);
     fprintf(stderr, "Global variables:\n");
-    for (; knit_vars_hasht_iter_check(&iter); knit_vars_hasht_iter_next(ht, &iter)) {
+    for (; knit_vars_jadwal_iter_check(&iter); knit_vars_jadwal_iter_next(ht, &iter)) {
         if (iter.pair->key.str) {
             fprintf(stderr, "\t%s", iter.pair->key.str);
         }
@@ -857,8 +857,8 @@ static int knitx_set_str(struct knit *knit, const char *key, const char *value) 
     //ownership of key is transferred to the vars hashtable
     struct knit_obj *objp = (struct knit_obj *) val_strp; //defined operation?
     struct knit_exec_state *exs = &knit->ex;
-    rv = knit_vars_hasht_insert(&exs->global_ht, &key_str, &objp);
-    if (rv != KNIT_VARS_HASHT_OK) {
+    rv = knit_vars_jadwal_insert(&exs->global_ht, &key_str, &objp);
+    if (rv != KNIT_VARS_JADWAL_OK) {
         rv = knit_error(knit, KNIT_RUNTIME_ERR, "knitx_set_str(): inserting key into vars hashtable failed");
         goto cleanup_val;
     }
@@ -1125,9 +1125,9 @@ static int knitx_obj_rep(struct knit *knit, struct knit_obj *obj, struct knit_st
         rv = knitx_str_strlcpy(knit, outi_str, "{", 1); 
         if (rv != KNIT_OK)
             return rv;
-        struct kobj_hasht_iter iter;
-        kobj_hasht_begin_iterator(&objdict->ht, &iter);
-        for (int i=0; kobj_hasht_iter_check(&iter); i++, kobj_hasht_iter_next(&objdict->ht, &iter)) 
+        struct kobj_jadwal_iter iter;
+        kobj_jadwal_begin_iterator(&objdict->ht, &iter);
+        for (int i=0; kobj_jadwal_iter_check(&iter); i++, kobj_jadwal_iter_next(&objdict->ht, &iter)) 
         {
             struct knit_obj *key = iter.pair->key;
             struct knit_obj *value = iter.pair->value;
@@ -1557,8 +1557,8 @@ static int knitx_stack_pop_frame(struct knit *knit, struct knit_stack *stack) {
 }
 
 static int knitx_exec_state_init(struct knit *knit, struct knit_exec_state *exs) {
-    int rv = knit_vars_hasht_init_with_udata(&exs->global_ht, 32, knit);
-    if (rv != KNIT_VARS_HASHT_OK) {
+    int rv = knit_vars_jadwal_init_with_udata(&exs->global_ht, 32, knit);
+    if (rv != KNIT_VARS_JADWAL_OK) {
         return knit_error(knit, KNIT_RUNTIME_ERR, "couldn't initialize vars hashtable");;
     }
     rv = knitx_stack_init(knit, &exs->stack);
@@ -1571,12 +1571,12 @@ static int knitx_exec_state_init(struct knit *knit, struct knit_exec_state *exs)
 cleanup_stack:
     knitx_stack_deinit(knit, &exs->stack);
 cleanup_vars_ht:
-    knit_vars_hasht_deinit(&exs->global_ht);
+    knit_vars_jadwal_deinit(&exs->global_ht);
     return rv;
 }
 
 static int knitx_exec_state_deinit(struct knit *knit, struct knit_exec_state *exs) {
-    knit_vars_hasht_deinit(&exs->global_ht);
+    knit_vars_jadwal_deinit(&exs->global_ht);
     int rv = knitx_stack_deinit(knit, &exs->stack);
     knit_heap_deinit(knit, &exs->heap);
     return rv;
@@ -4539,13 +4539,13 @@ static int knitx_op_exec_test_binop(struct knit *knit, struct knit_stack *stack,
 //pushes it to stack
 static int knitx_do_global_load(struct knit *knit, struct knit_str *name) {
     struct knit_exec_state *exs = &knit->ex;
-    struct knit_vars_hasht_iter iter;
-    int rv = knit_vars_hasht_find(&exs->global_ht, name, &iter);
-    if (rv != KNIT_VARS_HASHT_OK) {
-        if (rv == KNIT_VARS_HASHT_NOT_FOUND)
+    struct knit_vars_jadwal_iter iter;
+    int rv = knit_vars_jadwal_find(&exs->global_ht, name, &iter);
+    if (rv != KNIT_VARS_JADWAL_OK) {
+        if (rv == KNIT_VARS_JADWAL_NOT_FOUND)
             return knit_error(knit, KNIT_NOT_FOUND, "variable '%s' is undefined", name->str);
         else 
-            return knit_error(knit, KNIT_RUNTIME_ERR, "an error occured while trying to lookup a variable in knit_vars_hasht_find()");
+            return knit_error(knit, KNIT_RUNTIME_ERR, "an error occured while trying to lookup a variable in knit_vars_jadwal_find()");
     }
     rv = knitx_stack_rpush(knit, &exs->stack, iter.pair->value);
     if (rv != KNIT_OK)
@@ -4556,21 +4556,21 @@ static int knitx_do_global_load(struct knit *knit, struct knit_str *name) {
 //doesn't own name
 static int knitx_do_global_assign(struct knit *knit, struct knit_str *name, struct knit_obj *rhs) {
     struct knit_exec_state *exs = &knit->ex;
-    struct knit_vars_hasht_iter iter;
-    int rv = knit_vars_hasht_find(&exs->global_ht, name, &iter);
-    if (rv == KNIT_VARS_HASHT_OK) {
+    struct knit_vars_jadwal_iter iter;
+    int rv = knit_vars_jadwal_find(&exs->global_ht, name, &iter);
+    if (rv == KNIT_VARS_JADWAL_OK) {
         //todo destroy previous value 
         iter.pair->value = rhs;
     }
-    else if (rv == KNIT_VARS_HASHT_NOT_FOUND) {
+    else if (rv == KNIT_VARS_JADWAL_NOT_FOUND) {
         struct knit_str *new_str;
         rv = knitx_str_new_strcpy_gcobj(knit, &new_str, name->str); 
         if (rv != KNIT_OK)
             return rv;
-        rv = knit_vars_hasht_insert(&exs->global_ht, name, &rhs);
+        rv = knit_vars_jadwal_insert(&exs->global_ht, name, &rhs);
     }
 
-    if (rv != KNIT_VARS_HASHT_OK) {
+    if (rv != KNIT_VARS_JADWAL_OK) {
         return knit_error(knit, KNIT_RUNTIME_ERR, "knitx_do_global_assign(): assignment failed");
     }
     return KNIT_OK;

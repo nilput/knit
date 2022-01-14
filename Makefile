@@ -1,17 +1,17 @@
 
 .PHONY: all clean
-GEN :=        src/knit/knit_vars_hasht.h src/knit/kobj_hasht.h src/knit/tok_darray.h src/knit/insns_darray.h
+GEN :=        src/knit/knit_vars_jadwal.h src/knit/kobj_jadwal.h src/knit/tok_darray.h src/knit/insns_darray.h
 GEN := $(GEN) src/knit/knit_objp_darray.h src/knit/knit_frame_darray.h src/knit/knit_expr_darray.h src/knit/knit_stmt_darray.h src/knit/knit_varname_darray.h 
 opt:
 all: knit test $(GEN)
 
-src/hasht/src/hasht.h:
+src/jadwal/src/jadwal.h:
 	git submodule update --init
 
-src/knit/knit_vars_hasht.h: src/hasht/src/hasht.h
-	./src/hasht/scripts/gen_hasht knit_vars_hasht $@
-src/knit/kobj_hasht.h: src/hasht/src/hasht.h
-	./src/hasht/scripts/gen_hasht kobj_hasht $@
+src/knit/knit_vars_jadwal.h: src/jadwal/src/jadwal.h
+	./src/jadwal/scripts/gen_jadwal knit_vars_jadwal $@
+src/knit/kobj_jadwal.h: src/jadwal/src/jadwal.h
+	./src/jadwal/scripts/gen_jadwal kobj_jadwal $@
 src/knit/tok_darray.h: src/knit/darray/src/darray.h
 	./src/knit/darray/scripts/gen_darray.sh tok_darray 'struct knit_tok' $@
 src/knit/insns_darray.h: src/knit/darray/src/darray.h
@@ -34,9 +34,9 @@ opt: all
 san: CFLAGS := $(CFLAGS) -fsanitize=address
 san: all
 test: src/knit/test.c $(GEN) src/knit/knit.h
-	$(CC) $(CFLAGS) $(HASHT_INC) $< -o $@
+	$(CC) $(CFLAGS) $(JADWAL_INC) $< -o $@
 knit: src/knit/main.c $(GEN) src/knit/knit.h
-	$(CC) $(CFLAGS) $(HASHT_INC) $< -o $@
+	$(CC) $(CFLAGS) $(JADWAL_INC) $< -o $@
 src/knit/knit.h: src/knit/kdata.h src/knit/kruntime.h
 clean:
 	rm -f $(GEN) 2>/dev/null
